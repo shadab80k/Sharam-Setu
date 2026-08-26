@@ -6,12 +6,25 @@ import { MetricCard } from "@/components/ui/MetricCard";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
-import { Briefcase, Users, Wallet, Star, CheckCircle2, ArrowRight, Hammer, TrendingUp, Clock, X } from "lucide-react";
+import { TrustRing } from "@/components/ui/TrustRing";
+import { WorkerProfileModal } from "@/components/features/WorkerProfileModal";
+import {
+  Briefcase,
+  Users,
+  Wallet,
+  Star,
+  CheckCircle2,
+  ArrowRight,
+  Hammer,
+  TrendingUp,
+  ShieldCheck,
+  Award,
+} from "lucide-react";
 import Link from "next/link";
-import { formatINR, formatINRShort, timeAgo } from "@/lib/utils";
+import { formatINRShort } from "@/lib/utils";
 import { calculateMatchScore } from "@/lib/services/jobMatching";
 import { CITIES } from "@/lib/utils/cities";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 const PIPELINE = [
   { key: "new", label: "New", statuses: ["applied", "viewed"] },
@@ -32,6 +45,8 @@ export default function ContractorDashboard() {
   const payments = useStore((s) => s.payments.filter((p) => p.contractorId === userId));
   const currentLocation = useStore((s) => s.currentLocation);
   const city = CITIES.find((c) => c.id === currentLocation) || CITIES[0];
+
+  const [selectedWorkerMatch, setSelectedWorkerMatch] = useState<any | null>(null);
 
   const activeJobs = jobs.filter((j) => j.status === "active").length;
   const applicants = apps.filter((a) => jobs.some((j) => j.id === a.jobId)).length;
@@ -64,10 +79,35 @@ export default function ContractorDashboard() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard label="Active Jobs" value={activeJobs} icon={<Briefcase className="h-5 w-5" />} tone="orange" hint={`${jobs.length} total`} />
-        <MetricCard label="Applicants" value={applicants} icon={<Users className="h-5 w-5" />} tone="blue" trend={{ value: 24, positive: true }} hint="This week" />
-        <MetricCard label="Workers Hired" value={hired} icon={<CheckCircle2 className="h-5 w-5" />} tone="green" hint="Across all jobs" />
-        <MetricCard label="Pending Payments" value={formatINRShort(pendingPayments)} icon={<Wallet className="h-5 w-5" />} tone="amber" hint={`${payments.filter((p) => p.status !== "paid").length} pending`} />
+        <MetricCard
+          label="Active Jobs"
+          value={activeJobs}
+          icon={<Briefcase className="h-5 w-5" />}
+          tone="orange"
+          hint={`${jobs.length} total`}
+        />
+        <MetricCard
+          label="Applicants"
+          value={applicants}
+          icon={<Users className="h-5 w-5" />}
+          tone="blue"
+          trend={{ value: 24, positive: true }}
+          hint="This week"
+        />
+        <MetricCard
+          label="Workers Hired"
+          value={hired}
+          icon={<CheckCircle2 className="h-5 w-5" />}
+          tone="green"
+          hint="Across all jobs"
+        />
+        <MetricCard
+          label="Pending Payments"
+          value={formatINRShort(pendingPayments)}
+          icon={<Wallet className="h-5 w-5" />}
+          tone="amber"
+          hint={`${payments.filter((p) => p.status !== "paid").length} pending`}
+        />
       </div>
 
       <Card>
@@ -77,7 +117,9 @@ export default function ContractorDashboard() {
             <CardSubtitle>Track applicants across all your jobs</CardSubtitle>
           </div>
           <Link href="/contractor/applicants">
-            <Button variant="tertiary" size="sm" iconRight={<ArrowRight className="h-3.5 w-3.5" />}>Manage</Button>
+            <Button variant="tertiary" size="sm" iconRight={<ArrowRight className="h-3.5 w-3.5" />}>
+              Manage
+            </Button>
           </Link>
         </CardHeader>
         <CardBody>
@@ -102,6 +144,7 @@ export default function ContractorDashboard() {
       </Card>
 
       <div className="grid lg:grid-cols-3 gap-5">
+        {/* Recommended Workers Card */}
         <Card className="lg:col-span-2">
           <CardHeader className="flex items-center justify-between">
             <div>
@@ -109,7 +152,9 @@ export default function ContractorDashboard() {
               <CardSubtitle>Top matches based on your open jobs</CardSubtitle>
             </div>
             <Link href="/contractor/workers">
-              <Button variant="tertiary" size="sm" iconRight={<ArrowRight className="h-3.5 w-3.5" />}>Find more</Button>
+              <Button variant="tertiary" size="sm" iconRight={<ArrowRight className="h-3.5 w-3.5" />}>
+                Find more
+              </Button>
             </Link>
           </CardHeader>
           <CardBody className="space-y-3">
@@ -117,54 +162,132 @@ export default function ContractorDashboard() {
               <p className="text-sm text-gray-600">No recommendations yet. Post a job to get matches.</p>
             ) : (
               recommended.slice(0, 3).map((r) => (
-                <div key={r.worker.userId} className="p-3 rounded-lg border border-gray-200 hover:border-orange-500/40 transition flex items-center gap-3">
-                  <Avatar src={r.user.avatar} name={r.user.name} size={44} />
+                <div
+                  key={r.worker.userId}
+                  className="p-3.5 rounded-xl border border-gray-200 hover:border-orange-500/50 hover:shadow-soft transition-all flex items-center gap-3 bg-white"
+                >
+                  <Avatar src={r.user.avatar} name={r.user.name} size={48} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <div className="text-sm font-semibold text-navy-900">{r.user.name}</div>
-                      <Badge variant="green" size="sm" iconLeft={<CheckCircle2 className="h-2.5 w-2.5" />}>Verified</Badge>
+                      <Badge variant="green" size="sm" iconLeft={<CheckCircle2 className="h-2.5 w-2.5" />}>
+                        Verified
+                      </Badge>
                     </div>
                     <div className="text-xs text-gray-600 mt-0.5">
                       {r.worker.profession} · {r.worker.experienceYears} yrs · {r.worker.rating.toFixed(1)}★
                     </div>
-                    <div className="text-xs text-gray-700 mt-1">Trust {r.worker.trustScore}/100 · ₹{r.worker.expectedDailyWage}/day</div>
+                    <div className="text-xs text-gray-700 mt-1">
+                      Trust {r.worker.trustScore}/100 · ₹{r.worker.expectedDailyWage}/day
+                    </div>
                   </div>
                   <div className="text-right">
                     <div className="text-xl font-bold text-orange-600">{r.match.matchScore}%</div>
                     <div className="text-[10px] text-gray-500 uppercase tracking-wider">Match</div>
                   </div>
-                  <Button size="sm">View</Button>
+                  <Button size="sm" onClick={() => setSelectedWorkerMatch(r)}>
+                    View
+                  </Button>
                 </div>
               ))
             )}
           </CardBody>
         </Card>
 
-        <Card className="bg-gradient-to-br from-navy-900 to-navy-800 text-white border-navy-900">
-          <CardBody>
-            <div className="flex items-center gap-2 mb-2">
-              <Hammer className="h-4 w-4 text-orange-500" />
-              <div className="text-[10px] uppercase tracking-wider text-orange-500 font-semibold">Trust & Reputation</div>
+        {/* Fixed & Enhanced Trust & Reputation Card */}
+        <Card className="bg-gradient-to-br from-navy-900 via-navy-900 to-navy-800 text-white border-navy-900 shadow-soft h-full flex flex-col justify-between p-6">
+          <div className="space-y-4">
+            {/* Header Badge */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Hammer className="h-4 w-4 text-orange-500" />
+                <span className="text-[11px] uppercase tracking-wider text-orange-400 font-bold">
+                  Trust & Reputation
+                </span>
+              </div>
+              <Badge variant="green" size="sm">
+                GST Verified
+              </Badge>
             </div>
-            <div className="text-3xl font-bold">{profile.trustScore}<span className="text-lg text-gray-300">/100</span></div>
-            <div className="text-sm text-gray-300">{profile.trustLabel}</div>
-            <div className="mt-3 space-y-1.5 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-300">Payment reliability</span>
-                <span className="font-semibold">{profile.paymentReliability}%</span>
+
+            {/* Score & Ring Section */}
+            <div className="flex items-center justify-between p-3.5 rounded-xl bg-white/5 border border-white/10">
+              <div>
+                <div className="text-3xl font-extrabold text-white tracking-tight">
+                  {profile.trustScore}
+                  <span className="text-base font-normal text-gray-400">/100</span>
+                </div>
+                <div className="text-xs font-semibold text-green-400 mt-0.5">{profile.trustLabel}</div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-300">Response rate</span>
-                <span className="font-semibold">{profile.responseRate}%</span>
+              <TrustRing score={profile.trustScore} size={58} showLabel={false} />
+            </div>
+
+            {/* Detailed Performance Metrics */}
+            <div className="space-y-2.5 pt-1">
+              <div>
+                <div className="flex justify-between text-xs text-gray-300 mb-1">
+                  <span>Payment reliability</span>
+                  <span className="font-bold text-white">{profile.paymentReliability}%</span>
+                </div>
+                <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-green-500 rounded-full transition-all duration-500"
+                    style={{ width: `${profile.paymentReliability}%` }}
+                  />
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-300">Jobs done</span>
-                <span className="font-semibold">{profile.completedJobs}</span>
+
+              <div>
+                <div className="flex justify-between text-xs text-gray-300 mb-1">
+                  <span>Response rate</span>
+                  <span className="font-bold text-white">{profile.responseRate}%</span>
+                </div>
+                <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-400 rounded-full transition-all duration-500"
+                    style={{ width: `${profile.responseRate}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1 text-xs text-gray-300">
+                <span>Jobs completed</span>
+                <span className="font-bold text-white">{profile.completedJobs} contracts</span>
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-gray-300">
+                <span>Contractor rating</span>
+                <span className="font-bold text-amber-400 flex items-center gap-1">
+                  <Star className="h-3.5 w-3.5 fill-amber-400" /> {profile.rating.toFixed(1)} / 5.0
+                </span>
               </div>
             </div>
-          </CardBody>
+          </div>
+
+          {/* Footer Action Link */}
+          <div className="mt-5 pt-3 border-t border-white/10">
+            <Link
+              href="/contractor/reviews"
+              className="flex items-center justify-between text-xs text-orange-400 hover:text-orange-300 font-semibold group transition"
+            >
+              <span>View all reviews & badges</span>
+              <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </Link>
+          </div>
         </Card>
       </div>
+
+      {/* Interactive Worker Profile Modal */}
+      {selectedWorkerMatch && (
+        <WorkerProfileModal
+          open={!!selectedWorkerMatch}
+          onClose={() => setSelectedWorkerMatch(null)}
+          worker={selectedWorkerMatch.worker}
+          user={selectedWorkerMatch.user}
+          matchScore={selectedWorkerMatch.match?.matchScore}
+          matchReasons={selectedWorkerMatch.match?.reasons}
+        />
+      )}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { calculateMatchScore } from "@/lib/services/jobMatching";
 import { CITIES } from "@/lib/utils/cities";
 import { useMemo, useState } from "react";
 import type { ApplicationStatus } from "@/lib/types";
+import { WorkerProfileModal } from "@/components/features/WorkerProfileModal";
 
 export default function ContractorJobDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +30,7 @@ export default function ContractorJobDetailPage() {
 
   const [filter, setFilter] = useState<"all" | "strong">("all");
   const [sort, setSort] = useState<"match" | "trust" | "experience">("match");
+  const [modalWorker, setModalWorker] = useState<any | null>(null);
 
   const apps = useMemo(() => allApps.filter((a) => a.jobId === id), [allApps, id]);
   const city = useMemo(() => CITIES.find((c) => c.name === job?.location), [job]);
@@ -141,13 +143,26 @@ export default function ContractorJobDetailPage() {
                   if (action === "shortlist") updateApp(e.app.id, "shortlisted");
                   if (action === "reject") updateApp(e.app.id, "rejected");
                   if (action === "select") hire(e.app.id);
-                  if (action === "view") {/* open drawer */}
+                  if (action === "view" || action === "contact") setModalWorker(e);
                 }}
               />
             ))
           )}
         </CardBody>
       </Card>
+
+      {modalWorker && (
+        <WorkerProfileModal
+          open={!!modalWorker}
+          onClose={() => setModalWorker(null)}
+          worker={modalWorker.worker}
+          user={modalWorker.user}
+          matchScore={modalWorker.match?.matchScore}
+          matchReasons={modalWorker.match?.reasons}
+          onShortlist={() => updateApp(modalWorker.app.id, "shortlisted")}
+          onHire={() => hire(modalWorker.app.id)}
+        />
+      )}
     </div>
   );
 }
