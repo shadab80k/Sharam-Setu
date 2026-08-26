@@ -51,11 +51,11 @@ export function WorkerCard({ workerId, matchScore, matchReasons, onAction }: Wor
         )}
       </div>
 
-      <div className="mt-3 flex items-center justify-between">
-        <TrustRing score={profile.trustScore} size={64} showLabel={false} />
+      <div className="mt-3 flex items-center justify-between p-2 rounded-lg bg-cream-100/60 border border-gray-100">
+        <TrustRing score={profile.trustScore} size={52} showLabel={false} />
         <div className="text-right">
-          <div className="text-xs text-gray-600 mb-1.5">Trust Score</div>
-          <div className="text-base font-bold text-navy-900">{profile.trustScore}/100</div>
+          <div className="text-[11px] text-gray-600">Trust Score</div>
+          <div className="text-sm font-bold text-navy-900">{profile.trustScore}/100</div>
           <div className="text-[10px] text-gray-500">{profile.trustLabel}</div>
         </div>
       </div>
