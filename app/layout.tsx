@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
-import { TopProgressBar } from "@/components/ui/TopProgressBar";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,9 +19,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="antialiased" suppressHydrationWarning>
-        <Suspense fallback={null}>
-          <TopProgressBar />
-        </Suspense>
         {children}
       </body>
     </html>
