@@ -86,11 +86,15 @@ const config: Config = {
           "50%": { transform: "scale(1.2)" },
           "100%": { transform: "scale(1)", opacity: "1" },
         },
+        shimmer: {
+          "100%": { transform: "translateX(100%)" },
+        },
       },
       animation: {
         "fade-in": "fade-in 0.25s ease-out",
         "pulse-slow": "pulse-slow 2s ease-in-out infinite",
         "check-pop": "check-pop 0.4s ease-out",
+        shimmer: "shimmer 1.5s infinite",
       },
     },
   },
