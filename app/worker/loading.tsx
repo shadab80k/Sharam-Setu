@@ -1,5 +1,6 @@
-import { DashboardSkeleton } from "@/components/ui/Skeleton";
+import { InitialLoadingScreen } from "@/components/ui/InitialLoadingScreen";
 
 export default function WorkerLoading() {
-  return <DashboardSkeleton />;
+  return <InitialLoadingScreen />;
 }
+

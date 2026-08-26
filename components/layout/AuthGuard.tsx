@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Role } from "@/lib/types";
 
+import { InitialLoadingScreen } from "@/components/ui/InitialLoadingScreen";
+
 export function AuthGuard({ role, children }: { role: Role; children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const currentUserId = useStore((s) => s.currentUserId);
@@ -26,11 +28,7 @@ export function AuthGuard({ role, children }: { role: Role; children: React.Reac
   }, [mounted, currentUserId, user, role, router]);
 
   if (!mounted || !currentUserId || !user || user.role !== role) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-cream-50">
-        <div className="text-sm text-gray-600">Loading…</div>
-      </div>
-    );
+    return <InitialLoadingScreen />;
   }
   return <>{children}</>;
 }
