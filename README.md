@@ -1,4 +1,4 @@
-# 🏗️ ShramSetu AI (श्रमसेतु)
+# 🏗️ ShramSetu AI
 
 > **Next-Generation Digital Identity, Fair Wage & Trust Verification Platform for India's Informal Workforce.**  
 > Built for hackathons, enterprise demos, and state-of-the-art labor matching.
