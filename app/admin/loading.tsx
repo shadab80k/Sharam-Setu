@@ -1,6 +1,5 @@
-import { InitialLoadingScreen } from "@/components/ui/InitialLoadingScreen";
+import { DashboardSkeleton } from "@/components/ui/Skeleton";
 
 export default function AdminLoading() {
-  return <InitialLoadingScreen />;
+  return <DashboardSkeleton />;
 }
-

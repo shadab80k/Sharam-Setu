@@ -15,8 +15,8 @@ const config: Config = {
           700: "#12385E",
         },
         orange: {
-          600: "#F4511E",
-          500: "#FF641F",
+          600: "#D84315",
+          500: "#E64A19",
           100: "#FFF0E8",
         },
         cream: {
@@ -24,7 +24,7 @@ const config: Config = {
           100: "#F7F3EA",
         },
         green: {
-          600: "#178B4A",
+          600: "#137B3E",
           100: "#E8F6ED",
         },
         blue: {

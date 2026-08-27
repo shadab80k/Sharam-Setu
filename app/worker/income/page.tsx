@@ -7,18 +7,42 @@ import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Tabs } from "@/components/ui/Tabs";
 import { Wallet, Clock, AlertCircle, CheckCircle2, PlusCircle, ArrowUpRight, TrendingUp } from "lucide-react";
-import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, Legend } from "recharts";
 import { formatINR, formatINRShort, formatDate } from "@/lib/utils";
 import { useState } from "react";
+import dynamic from "next/dynamic";
+
+const IncomeBarChart = dynamic(
+  () => import("@/components/features/IncomeCharts").then((mod) => mod.IncomeBarChart),
+  { ssr: false, loading: () => <div className="h-56 w-full rounded-lg bg-gray-100 animate-pulse" /> }
+);
+
+const IncomeStatusPie = dynamic(
+  () => import("@/components/features/IncomeCharts").then((mod) => mod.IncomeStatusPie),
+  { ssr: false, loading: () => <div className="h-40 w-full rounded-lg bg-gray-100 animate-pulse" /> }
+);
+
+import { Modal } from "@/components/ui/Modal";
+import { Input, Select, Textarea } from "@/components/ui/Input";
 
 export default function WorkerIncomePage() {
-  const userId = "usr_w_1";
-  const payments = useStore((s) => s.payments.filter((p) => p.workerId === userId));
+  const currentUserId = useStore((s) => s.currentUserId) || "usr_w_1";
+  const payments = useStore((s) => s.payments.filter((p) => p.workerId === currentUserId));
   const jobs = useStore((s) => s.jobs);
   const contractors = useStore((s) => s.users);
   const markReceived = useStore((s) => s.markPaymentReceived);
+  const addIncome = useStore((s) => s.addIncome);
   const pushToast = useStore((s) => s.pushToast);
   const [tab, setTab] = useState<"daily" | "weekly" | "monthly">("weekly");
+  const [openModal, setOpenModal] = useState(false);
+  const [incomeForm, setIncomeForm] = useState({
+    title: "",
+    contractorName: "Raj BuildWorks",
+    amount: "",
+    date: new Date().toISOString().slice(0, 10),
+    status: "paid" as "paid" | "pending",
+    method: "UPI",
+    notes: "",
+  });
 
   const totalIncome = payments.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
   const pending = payments.filter((p) => p.status !== "paid").reduce((s, p) => s + p.amount, 0);
@@ -37,6 +61,35 @@ export default function WorkerIncomePage() {
     { name: "Overdue", value: overdue.length, color: "#D92D20" },
   ];
 
+  const handleAddIncome = () => {
+    if (!incomeForm.amount || Number(incomeForm.amount) <= 0) {
+      pushToast("error", "Please enter a valid amount");
+      return;
+    }
+    const contractor = contractors.find((c) => c.role === "contractor") || contractors[0];
+    addIncome({
+      workerId: currentUserId,
+      contractorId: contractor?.id || "usr_c_1",
+      jobId: "custom_job",
+      amount: Number(incomeForm.amount),
+      dueDate: new Date(incomeForm.date).toISOString(),
+      paidDate: incomeForm.status === "paid" ? new Date(incomeForm.date).toISOString() : undefined,
+      status: incomeForm.status,
+      method: incomeForm.method,
+      notes: incomeForm.title ? `${incomeForm.title} - ${incomeForm.notes}` : incomeForm.notes,
+    });
+    setOpenModal(false);
+    setIncomeForm({
+      title: "",
+      contractorName: "Raj BuildWorks",
+      amount: "",
+      date: new Date().toISOString().slice(0, 10),
+      status: "paid",
+      method: "UPI",
+      notes: "",
+    });
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -44,7 +97,9 @@ export default function WorkerIncomePage() {
           <h2 className="text-2xl font-bold text-navy-900">Your money, clearly tracked.</h2>
           <p className="text-sm text-gray-700 mt-1">Income, payments, and history at a glance.</p>
         </div>
-        <Button iconLeft={<PlusCircle className="h-4 w-4" />}>Add income</Button>
+        <Button onClick={() => setOpenModal(true)} iconLeft={<PlusCircle className="h-4 w-4" />}>
+          Add income
+        </Button>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -72,16 +127,7 @@ export default function WorkerIncomePage() {
             />
           </CardHeader>
           <CardBody>
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <XAxis dataKey="d" axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
-                  <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} formatter={(v: any) => formatINR(v as number)} />
-                  <Bar dataKey="v" fill="#F4511E" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <IncomeBarChart data={chartData} />
           </CardBody>
         </Card>
 
@@ -91,18 +137,7 @@ export default function WorkerIncomePage() {
             <CardSubtitle>Breakdown of {payments.length} payments</CardSubtitle>
           </CardHeader>
           <CardBody>
-            <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={statusData} dataKey="value" innerRadius={36} outerRadius={60} paddingAngle={2}>
-                    {statusData.map((entry) => (
-                      <Cell key={entry.name} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+            <IncomeStatusPie data={statusData} />
             <div className="space-y-1.5 mt-2">
               {statusData.map((s) => (
                 <div key={s.name} className="flex items-center justify-between text-xs">
@@ -128,10 +163,11 @@ export default function WorkerIncomePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-cream-50 text-left text-xs uppercase tracking-wider text-gray-600">
-                  <th className="px-4 py-3 font-semibold">Job</th>
+                  <th className="px-4 py-3 font-semibold">Job / Source</th>
                   <th className="px-4 py-3 font-semibold">Contractor</th>
                   <th className="px-4 py-3 font-semibold text-right">Amount</th>
-                  <th className="px-4 py-3 font-semibold">Due</th>
+                  <th className="px-4 py-3 font-semibold">Date</th>
+                  <th className="px-4 py-3 font-semibold">Method</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold"></th>
                 </tr>
@@ -140,12 +176,14 @@ export default function WorkerIncomePage() {
                 {payments.map((p) => {
                   const job = jobs.find((j) => j.id === p.jobId);
                   const contractor = contractors.find((u) => u.id === p.contractorId);
+                  const displayName = job?.title ?? (p.notes ? p.notes.split(" - ")[0] : "Site Work");
                   return (
                     <tr key={p.id} className="border-b border-gray-200 hover:bg-cream-50">
-                      <td className="px-4 py-3 font-medium text-navy-900">{job?.title}</td>
-                      <td className="px-4 py-3 text-gray-700">{contractor?.name}</td>
+                      <td className="px-4 py-3 font-medium text-navy-900">{displayName}</td>
+                      <td className="px-4 py-3 text-gray-700">{contractor?.name ?? "Direct Contractor"}</td>
                       <td className="px-4 py-3 text-right font-semibold text-navy-900">{formatINR(p.amount)}</td>
                       <td className="px-4 py-3 text-gray-600">{formatDate(p.dueDate)}</td>
+                      <td className="px-4 py-3 text-gray-600">{p.method || "UPI"}</td>
                       <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
                       <td className="px-4 py-3 text-right">
                         {p.status !== "paid" && (
@@ -162,6 +200,63 @@ export default function WorkerIncomePage() {
           </div>
         </CardBody>
       </Card>
+
+      <Modal open={openModal} onClose={() => setOpenModal(false)} title="Record New Income">
+        <div className="space-y-3">
+          <Input
+            label="Job / Work Name"
+            placeholder="e.g. Brickwork at Gomti Nagar site"
+            value={incomeForm.title}
+            onChange={(e) => setIncomeForm({ ...incomeForm, title: e.target.value })}
+          />
+          <Input
+            label="Amount (₹)"
+            type="number"
+            placeholder="e.g. 1200"
+            value={incomeForm.amount}
+            onChange={(e) => setIncomeForm({ ...incomeForm, amount: e.target.value })}
+          />
+          <Input
+            label="Date"
+            type="date"
+            value={incomeForm.date}
+            onChange={(e) => setIncomeForm({ ...incomeForm, date: e.target.value })}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <Select
+              label="Status"
+              value={incomeForm.status}
+              onChange={(e) => setIncomeForm({ ...incomeForm, status: e.target.value as any })}
+              options={[
+                { value: "paid", label: "Paid / Received" },
+                { value: "pending", label: "Pending Payment" },
+              ]}
+            />
+            <Select
+              label="Payment Method"
+              value={incomeForm.method}
+              onChange={(e) => setIncomeForm({ ...incomeForm, method: e.target.value })}
+              options={[
+                { value: "UPI", label: "UPI (PhonePe/GPay)" },
+                { value: "Cash", label: "Cash" },
+                { value: "Bank Transfer", label: "Bank Transfer" },
+              ]}
+            />
+          </div>
+          <Textarea
+            label="Notes (optional)"
+            placeholder="e.g. 1.5 days daily wage + overtime"
+            value={incomeForm.notes}
+            onChange={(e) => setIncomeForm({ ...incomeForm, notes: e.target.value })}
+          />
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="secondary" onClick={() => setOpenModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddIncome}>Save Income</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

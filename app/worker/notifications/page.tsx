@@ -22,8 +22,8 @@ const TYPE_META: Record<string, { icon: React.ReactNode; color: string; label: s
 };
 
 export default function WorkerNotificationsPage() {
-  const userId = "usr_w_1";
-  const notifications = useStore((s) => s.notifications.filter((n) => n.userId === userId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+  const currentUserId = useStore((s) => s.currentUserId) || "usr_w_1";
+  const notifications = useStore((s) => s.notifications.filter((n) => n.userId === currentUserId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
   const markRead = useStore((s) => s.markNotificationRead);
   const markAllRead = useStore((s) => s.markAllNotificationsRead);
 
@@ -59,7 +59,7 @@ export default function WorkerNotificationsPage() {
           <p className="text-sm text-gray-700 mt-1">{unread} unread · {notifications.length} total</p>
         </div>
         {unread > 0 && (
-          <Button variant="secondary" size="sm" onClick={() => markAllRead(userId)}>
+          <Button variant="secondary" size="sm" onClick={() => markAllRead(currentUserId)}>
             Mark all as read
           </Button>
         )}

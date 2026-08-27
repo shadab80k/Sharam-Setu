@@ -4,9 +4,9 @@ import { Skeleton, MetricCardSkeleton, JobCardSkeleton } from "./Skeleton";
 
 export function InitialLoadingScreen() {
   return (
-    <div className="min-h-screen bg-cream-50 flex">
+    <div className="min-h-screen bg-cream-50 flex" suppressHydrationWarning>
       {/* Sidebar Skeleton */}
-      <aside className="hidden lg:flex flex-col w-60 xl:w-64 h-screen sticky top-0 border-r border-gray-200 bg-white p-5 space-y-6">
+      <aside className="hidden lg:flex flex-col w-60 xl:w-64 h-screen sticky top-0 border-r border-gray-200 bg-white p-5 space-y-6" suppressHydrationWarning>
         <div className="flex items-center gap-2.5">
           <Skeleton className="h-9 w-9 rounded-xl flex-shrink-0" />
           <div className="space-y-1.5 flex-1">
@@ -44,8 +44,8 @@ export function InitialLoadingScreen() {
       </aside>
 
       {/* TopBar + Content Skeleton */}
-      <div className="flex-1 min-w-0 flex flex-col">
-        <header className="h-16 border-b border-gray-200 bg-white px-4 lg:px-8 flex items-center justify-between">
+      <div className="flex-1 min-w-0 flex flex-col" suppressHydrationWarning>
+        <header className="h-16 border-b border-gray-200 bg-white px-4 lg:px-8 flex items-center justify-between" suppressHydrationWarning>
           <div className="space-y-1">
             <Skeleton className="h-5 w-36" />
             <Skeleton className="h-3 w-48" />

@@ -17,16 +17,19 @@ import { CITIES } from "@/lib/utils/cities";
 export default function WorkerJobDetail() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const currentUserId = useStore((s) => s.currentUserId) || "usr_w_1";
   const job = useStore((s) => s.jobs.find((j) => j.id === id));
-  const profile = useStore((s) => s.workerProfiles.find((p) => p.userId === "usr_w_1"));
+  const profile = useStore((s) => s.workerProfiles.find((p) => p.userId === currentUserId));
   const contractor = useStore((s) => s.contractorProfiles.find((c) => c.userId === job?.contractorId));
   const contractorUser = useStore((s) => s.users.find((u) => u.id === job?.contractorId));
+  const existingApp = useStore((s) => s.applications.find((a) => a.jobId === id && a.workerId === currentUserId));
   const applyToJob = useStore((s) => s.applyToJob);
+  const savedJobIds = useStore((s) => s.savedJobIds || []);
+  const toggleSaveJob = useStore((s) => s.toggleSaveJob);
   const currentLocation = useStore((s) => s.currentLocation);
   const city = CITIES.find((c) => c.id === currentLocation) || CITIES[0];
 
-  const [applied, setApplied] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const isSaved = job ? savedJobIds.includes(job.id) : false;
 
   if (!job || !profile) return <div className="text-sm text-gray-600">Job not found.</div>;
 
@@ -39,8 +42,12 @@ export default function WorkerJobDetail() {
         <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-gray-700 hover:text-navy-900">
           <ArrowLeft className="h-4 w-4" /> Back to jobs
         </button>
-        <button onClick={() => setSaved((s) => !s)} className="text-gray-500 hover:text-orange-600">
-          <Bookmark className={`h-5 w-5 ${saved ? "fill-orange-600 text-orange-600" : ""}`} />
+        <button
+          onClick={() => toggleSaveJob(job.id)}
+          title={isSaved ? "Saved" : "Save job"}
+          className="text-gray-500 hover:text-orange-600 transition"
+        >
+          <Bookmark className={`h-5 w-5 ${isSaved ? "fill-orange-600 text-orange-600" : ""}`} />
         </button>
       </div>
 
@@ -201,15 +208,19 @@ export default function WorkerJobDetail() {
           </Card>
 
           <div className="sticky top-20">
-            {applied ? (
+            {existingApp ? (
               <Card className="bg-green-100 border-green-100">
                 <CardBody className="text-center">
                   <div className="h-12 w-12 rounded-full bg-green-600 text-white flex items-center justify-center mx-auto animate-check-pop">
                     <CheckCircle2 className="h-6 w-6" />
                   </div>
-                  <h3 className="text-base font-bold text-navy-900 mt-3">Application sent</h3>
+                  <h3 className="text-base font-bold text-navy-900 mt-3">
+                    {existingApp.status === "applied" ? "Application sent" : `Status: ${existingApp.status}`}
+                  </h3>
                   <p className="text-sm text-gray-700 mt-1">
-                    We'll notify you when {contractor?.companyName ?? "the contractor"} responds.
+                    {existingApp.status === "applied"
+                      ? `We'll notify you when ${contractor?.companyName ?? "the contractor"} responds.`
+                      : `Your application is currently ${existingApp.status}.`}
                   </p>
                   <Link href="/worker/applications">
                     <Button variant="primary" size="md" fullWidth className="mt-4">
@@ -229,14 +240,19 @@ export default function WorkerJobDetail() {
                     size="lg"
                     className="mt-4"
                     onClick={() => {
-                      applyToJob(job.id, "usr_w_1", match.matchScore);
-                      setApplied(true);
+                      applyToJob(job.id, currentUserId, match.matchScore);
                     }}
                   >
                     Apply now
                   </Button>
-                  <Button fullWidth size="md" variant="secondary" className="mt-2" onClick={() => setSaved((s) => !s)}>
-                    {saved ? "Saved ✓" : "Save for later"}
+                  <Button
+                    fullWidth
+                    size="md"
+                    variant="secondary"
+                    className="mt-2"
+                    onClick={() => toggleSaveJob(job.id)}
+                  >
+                    {isSaved ? "Saved ✓" : "Save for later"}
                   </Button>
                 </CardBody>
               </Card>

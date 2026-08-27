@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useStore } from "@/lib/store";
@@ -121,14 +122,34 @@ const adminNav: { group: string; items: NavItem[] }[] = [
   },
 ];
 
+function isNavActive(pathname: string | null, href: string, allHrefs: string[]): boolean {
+  if (!pathname) return false;
+  if (pathname === href) return true;
+  if (pathname.startsWith(href + "/")) {
+    const hasMoreSpecificItem = allHrefs.some(
+      (other) => other !== href && other.startsWith(href) && (pathname === other || pathname.startsWith(other + "/"))
+    );
+    return !hasMoreSpecificItem;
+  }
+  return false;
+}
+
 export function Sidebar({ role }: { role: Role }) {
   const pathname = usePathname();
-  const unread = useStore((s) => s.notifications.filter((n) => !n.read).length);
-  const user = useStore((s) => s.users.find((u) => u.id === s.currentUserId));
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const currentUserId = useStore((s) => s.currentUserId);
+  const unread = useStore((s) => s.notifications.filter((n) => !n.read && n.userId === currentUserId).length);
+  const user = useStore((s) => s.users.find((u) => u.id === currentUserId));
   const logout = useStore((s) => s.logout);
+
+  useEffect(() => {
+    setPendingHref(null);
+  }, [pathname]);
 
   const groups =
     role === "worker" ? workerNav : role === "contractor" ? contractorNav : adminNav;
+
+  const allHrefs = groups.flatMap((g) => g.items.map((i) => i.href));
 
   const roleLabel = role === "worker" ? "Worker" : role === "contractor" ? "Contractor" : "Admin";
 
@@ -157,22 +178,24 @@ export function Sidebar({ role }: { role: Role }) {
               {group.group}
             </div>
             {group.items.map((item) => {
-              const active = pathname === item.href || pathname?.startsWith(item.href + "/");
+              const active = pendingHref ? pendingHref === item.href : isNavActive(pathname, item.href, allHrefs);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch={true}
+                  onClick={() => setPendingHref(item.href)}
                   className={cn(
-                    "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition group",
+                    "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150 group focus:outline-none",
                     active
-                      ? "bg-orange-100 text-orange-600"
+                      ? "bg-orange-100 text-orange-700 font-semibold"
                       : "text-gray-700 hover:bg-cream-100 hover:text-navy-900"
                   )}
                 >
                   <span
                     className={cn(
-                      "h-1.5 w-1.5 rounded-full transition",
-                      active ? "bg-orange-600" : "bg-transparent"
+                      "h-1.5 w-1.5 rounded-full transition-all duration-150",
+                      active ? "bg-orange-600 scale-100" : "bg-transparent scale-0"
                     )}
                   />
                   {item.icon}
@@ -192,10 +215,12 @@ export function Sidebar({ role }: { role: Role }) {
         <div className="px-3 mb-1.5 text-[10px] font-semibold tracking-wider text-gray-500 uppercase">System</div>
         <Link
           href={`/${role}/notifications`}
+          prefetch={true}
+          onClick={() => setPendingHref(`/${role}/notifications`)}
           className={cn(
-            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition",
-            pathname?.includes("/notifications")
-              ? "bg-orange-100 text-orange-600"
+            "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150 focus:outline-none",
+            (pendingHref ? pendingHref === `/${role}/notifications` : (pathname === `/${role}/notifications` || pathname?.startsWith(`/${role}/notifications/`)))
+              ? "bg-orange-100 text-orange-700 font-semibold"
               : "text-gray-700 hover:bg-cream-100 hover:text-navy-900"
           )}
         >
@@ -209,7 +234,7 @@ export function Sidebar({ role }: { role: Role }) {
         </Link>
         <button
           onClick={logout}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-red-100 hover:text-red-600 transition"
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-red-100 hover:text-red-600 transition focus:outline-none"
         >
           <LogOut className="h-4 w-4" />
           <span>Sign out</span>

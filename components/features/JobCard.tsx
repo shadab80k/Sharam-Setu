@@ -18,9 +18,21 @@ interface JobCardProps {
   onSave?: () => void;
 }
 
-export function JobCard({ job, matchScore, matchReasons, distanceKm, href, showActions, onSave }: JobCardProps) {
+export function JobCard({ job, matchScore, matchReasons, distanceKm, href, showActions = true, onSave }: JobCardProps) {
   const contractor = useStore((s) => s.contractorProfiles.find((c) => c.userId === job.contractorId));
   const user = useStore((s) => s.users.find((u) => u.id === job.contractorId));
+  const savedJobIds = useStore((s) => s.savedJobIds || []);
+  const toggleSaveJob = useStore((s) => s.toggleSaveJob);
+
+  const isSaved = savedJobIds.includes(job.id);
+
+  const handleBookmark = () => {
+    if (onSave) {
+      onSave();
+    } else {
+      toggleSaveJob(job.id);
+    }
+  };
 
   return (
     <Card className="p-5 hover:shadow-elevated transition">
@@ -92,8 +104,13 @@ export function JobCard({ job, matchScore, matchReasons, distanceKm, href, showA
         </div>
         <div className="flex items-center gap-1.5">
           {showActions && (
-            <Button variant="ghost" size="sm" onClick={onSave}>
-              <Bookmark className="h-4 w-4" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleBookmark}
+              title={isSaved ? "Remove from saved" : "Save job"}
+            >
+              <Bookmark className={`h-4 w-4 ${isSaved ? "fill-orange-600 text-orange-600" : "text-gray-500"}`} />
             </Button>
           )}
           <Link href={href ?? `/worker/jobs/${job.id}`}>

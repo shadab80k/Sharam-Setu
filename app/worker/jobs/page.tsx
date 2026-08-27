@@ -13,8 +13,10 @@ import { CITIES } from "@/lib/utils/cities";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 export default function WorkerJobsPage() {
+  const currentUserId = useStore((s) => s.currentUserId) || "usr_w_1";
   const jobs = useStore((s) => s.jobs.filter((j) => j.status === "active"));
-  const profile = useStore((s) => s.workerProfiles.find((p) => p.userId === "usr_w_1"));
+  const profile = useStore((s) => s.workerProfiles.find((p) => p.userId === currentUserId));
+  const savedJobIds = useStore((s) => s.savedJobIds || []);
   const currentLocation = useStore((s) => s.currentLocation);
   const city = CITIES.find((c) => c.id === currentLocation) || CITIES[0];
 
@@ -46,6 +48,7 @@ export default function WorkerJobsPage() {
       if (minWage && job.wagePerDay < minWage) return false;
       if (distanceKm > maxDistance) return false;
       if (profession !== "all" && job.category !== profession) return false;
+      if (chipFilters.includes("saved") && !savedJobIds.includes(job.id)) return false;
       if (chipFilters.includes("best-match") && matchScore < 80) return false;
       if (chipFilters.includes("verified") && (useStore.getState().contractorProfiles.find((c) => c.userId === job.contractorId)?.trustScore ?? 0) < 75) return false;
       if (chipFilters.includes("available") && profile?.availability !== "available") return false;
@@ -53,7 +56,7 @@ export default function WorkerJobsPage() {
       if (chipFilters.includes("highest-pay") && job.wagePerDay < 1000) return false;
       return true;
     });
-  }, [enriched, search, chipFilters, minWage, maxDistance, profession, profile]);
+  }, [enriched, search, chipFilters, minWage, maxDistance, profession, profile, savedJobIds]);
 
   const chips = [
     { id: "near", label: "Near me" },
@@ -61,6 +64,7 @@ export default function WorkerJobsPage() {
     { id: "highest-pay", label: "Highest pay" },
     { id: "verified", label: "Verified contractors" },
     { id: "available", label: "Available now" },
+    { id: "saved", label: `Saved (${savedJobIds.length})` },
   ];
 
   function toggleChip(id: string) {
@@ -165,7 +169,16 @@ export default function WorkerJobsPage() {
         <EmptyState
           title="No jobs match these filters"
           description="Try expanding your search radius or removing one filter."
-          cta={{ label: "Reset filters", onClick: () => { setSearch(""); setChipFilters([]); setMinWage(0); setMaxDistance(20); } }}
+          cta={{
+            label: "Reset filters",
+            onClick: () => {
+              setSearch("");
+              setChipFilters([]);
+              setMinWage(0);
+              setMaxDistance(20);
+              setProfession("all");
+            },
+          }}
         />
       ) : (
         <div className="grid md:grid-cols-2 gap-4">

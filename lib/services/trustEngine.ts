@@ -120,26 +120,32 @@ export function calculateTrustScore(input: TrustInput): TrustResult {
 
 export function calculateContractorTrust(input: {
   user: User;
-  verifications: Verification[];
-  jobs: { id: string; contractorId: string; status: string }[];
-  payments: Payment[];
-  safetyReports: SafetyReport[];
+  verifications?: Verification[];
+  jobs?: { id: string; contractorId: string; status: string }[];
+  payments?: Payment[];
+  safetyReports?: SafetyReport[];
 }): TrustResult {
   const breakdown: TrustBreakdownItem[] = [];
-  const verificationsCount = input.verifications.filter((v) => v.userId === input.user.id && v.status === "verified").length;
+  const verifications = input?.verifications ?? [];
+  const jobs = input?.jobs ?? [];
+  const payments = input?.payments ?? [];
+  const safetyReports = input?.safetyReports ?? [];
+  const userId = input?.user?.id ?? "";
+
+  const verificationsCount = verifications.filter((v) => v.userId === userId && v.status === "verified").length;
   const profile = Math.min(20, verificationsCount * 3);
   breakdown.push({ category: "Profile Verification", points: profile, max: 20, reason: `${verificationsCount} verifications` });
 
-  const completed = input.jobs.filter((j) => j.contractorId === input.user.id && j.status === "completed").length;
+  const completed = jobs.filter((j) => j.contractorId === userId && j.status === "completed").length;
   const jobScore = Math.min(20, completed * 2);
   breakdown.push({ category: "Completed Jobs", points: jobScore, max: 20, reason: `${completed} jobs completed` });
 
-  const contractorPayments = input.payments.filter((p) => p.contractorId === input.user.id);
+  const contractorPayments = payments.filter((p) => p.contractorId === userId);
   const paid = contractorPayments.filter((p) => p.status === "paid").length;
   const reliability = contractorPayments.length ? Math.round((paid / contractorPayments.length) * 20) : 12;
   breakdown.push({ category: "Payment Reliability", points: reliability, max: 20, reason: `${paid}/${contractorPayments.length} paid on time` });
 
-  const complaints = input.safetyReports.filter((r) => r.targetUserId === input.user.id).length;
+  const complaints = safetyReports.filter((r) => r.targetUserId === userId).length;
   const safety = Math.max(0, 20 - complaints * 4);
   breakdown.push({ category: "Safety Record", points: safety, max: 20, reason: `${complaints} complaint(s)` });
 

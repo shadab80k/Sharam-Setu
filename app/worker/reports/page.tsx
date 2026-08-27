@@ -28,9 +28,10 @@ const SEVERITY_OPTIONS = [
 ];
 
 export default function WorkerReportsPage() {
-  const userId = "usr_w_1";
-  const reports = useStore((s) => s.safetyReports.filter((r) => r.reporterId === userId));
+  const currentUserId = useStore((s) => s.currentUserId) || "usr_w_1";
+  const reports = useStore((s) => s.safetyReports.filter((r) => r.reporterId === currentUserId));
   const submit = useStore((s) => s.submitReport);
+  const pushToast = useStore((s) => s.pushToast);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<{ category: ReportCategory; severity: ReportSeverity; jobId: string; description: string }>({
     category: "unsafe-workplace",
@@ -39,10 +40,18 @@ export default function WorkerReportsPage() {
     description: "",
   });
 
+  function handleOpenCategory(cat: ReportCategory) {
+    setForm((prev) => ({ ...prev, category: cat }));
+    setOpen(true);
+  }
+
   function handleSubmit() {
-    if (!form.description) return;
+    if (!form.description.trim()) {
+      pushToast("error", "Please describe what happened in detail");
+      return;
+    }
     submit({
-      reporterId: userId,
+      reporterId: currentUserId,
       category: form.category,
       severity: form.severity,
       jobId: form.jobId || undefined,
@@ -64,11 +73,11 @@ export default function WorkerReportsPage() {
 
       <div className="grid sm:grid-cols-3 gap-4">
         {[
-          { icon: <Shield className="h-5 w-5" />, label: "Report unsafe workplace", desc: "Site safety, equipment, hazards" },
-          { icon: <DollarSign className="h-5 w-5" />, label: "Report payment issue", desc: "Withheld wages, delayed payments" },
-          { icon: <AlertTriangle className="h-5 w-5" />, label: "Report fraud", desc: "Fake jobs, fake contractors" },
+          { icon: <Shield className="h-5 w-5" />, label: "Report unsafe workplace", desc: "Site safety, equipment, hazards", category: "unsafe-workplace" as ReportCategory },
+          { icon: <DollarSign className="h-5 w-5" />, label: "Report payment issue", desc: "Withheld wages, delayed payments", category: "payment-dispute" as ReportCategory },
+          { icon: <AlertTriangle className="h-5 w-5" />, label: "Report fraud", desc: "Fake jobs, fake contractors", category: "fraud" as ReportCategory },
         ].map((c) => (
-          <Card key={c.label} className="p-5 hover:shadow-elevated transition cursor-pointer" onClick={() => setOpen(true)}>
+          <Card key={c.label} className="p-5 hover:shadow-elevated transition cursor-pointer" onClick={() => handleOpenCategory(c.category)}>
             <div className="h-10 w-10 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center mb-3">
               {c.icon}
             </div>

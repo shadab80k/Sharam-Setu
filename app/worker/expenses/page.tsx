@@ -10,30 +10,41 @@ import { Badge } from "@/components/ui/Badge";
 import { TrendingDown, Wallet, PiggyBank, PlusCircle, X, ShoppingBag, Bus, Home, Users, Wrench, Stethoscope, MoreHorizontal, Sparkles, Calendar, Trash2 } from "lucide-react";
 import { formatINR, formatINRShort, formatDate } from "@/lib/utils";
 import { useState, useMemo } from "react";
-import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts";
+import dynamic from "next/dynamic";
 import { Modal } from "@/components/ui/Modal";
 import type { ExpenseCategory } from "@/lib/types";
 
+const ExpensesBarChart = dynamic(() => import("@/components/features/ExpensesBarChart"), {
+  ssr: false,
+  loading: () => <div className="h-56 w-full rounded-lg bg-gray-100 animate-pulse" />,
+});
+
 const CATEGORY_META: Record<ExpenseCategory, { label: string; icon: React.ReactNode; color: string }> = {
-  food: { label: "Food", icon: <ShoppingBag className="h-4 w-4" />, color: "#F4511E" },
+  food: { label: "Food", icon: <ShoppingBag className="h-4 w-4" />, color: "#D84315" },
   transport: { label: "Transport", icon: <Bus className="h-4 w-4" />, color: "#2367C9" },
   rent: { label: "Rent", icon: <Home className="h-4 w-4" />, color: "#7047C6" },
-  family: { label: "Family", icon: <Users className="h-4 w-4" />, color: "#178B4A" },
+  family: { label: "Family", icon: <Users className="h-4 w-4" />, color: "#137B3E" },
   tools: { label: "Tools", icon: <Wrench className="h-4 w-4" />, color: "#C77A00" },
   medical: { label: "Medical", icon: <Stethoscope className="h-4 w-4" />, color: "#D92D20" },
   other: { label: "Other", icon: <MoreHorizontal className="h-4 w-4" />, color: "#667085" },
 };
 
 export default function WorkerExpensesPage() {
-  const userId = "usr_w_1";
-  const expenses = useStore((s) => s.expenses.filter((e) => e.workerId === userId));
-  const payments = useStore((s) => s.payments.filter((p) => p.workerId === userId && p.status === "paid"));
-  const goals = useStore((s) => s.savingsGoals.filter((g) => g.workerId === userId));
+  const currentUserId = useStore((s) => s.currentUserId) || "usr_w_1";
+  const expenses = useStore((s) => s.expenses.filter((e) => e.workerId === currentUserId));
+  const payments = useStore((s) => s.payments.filter((p) => p.workerId === currentUserId && p.status === "paid"));
+  const goals = useStore((s) => s.savingsGoals.filter((g) => g.workerId === currentUserId));
   const addExpense = useStore((s) => s.addExpense);
+  const deleteExpense = useStore((s) => s.deleteExpense);
   const addGoal = useStore((s) => s.addSavingsGoal);
+  const contributeToSavingsGoal = useStore((s) => s.contributeToSavingsGoal);
+  const pushToast = useStore((s) => s.pushToast);
 
   const [open, setOpen] = useState(false);
   const [goalOpen, setGoalOpen] = useState(false);
+  const [depositOpen, setDepositOpen] = useState(false);
+  const [selectedGoal, setSelectedGoal] = useState<typeof goals[0] | null>(null);
+  const [depositAmount, setDepositAmount] = useState("");
   const [form, setForm] = useState({ category: "food" as ExpenseCategory, amount: "", date: new Date().toISOString().slice(0, 10), note: "" });
   const [goalForm, setGoalForm] = useState({ name: "", targetAmount: "", currentAmount: "0", targetDate: "" });
 
@@ -61,23 +72,45 @@ export default function WorkerExpensesPage() {
   }, []);
 
   function handleAdd() {
-    if (!form.amount) return;
-    addExpense(userId, { category: form.category, amount: Number(form.amount), date: new Date(form.date).toISOString(), note: form.note || undefined });
+    if (!form.amount || Number(form.amount) <= 0) {
+      pushToast("error", "Please enter a valid expense amount");
+      return;
+    }
+    const safeDate = form.date ? new Date(form.date).toISOString() : new Date().toISOString();
+    addExpense(currentUserId, { category: form.category, amount: Number(form.amount), date: safeDate, note: form.note || undefined });
     setOpen(false);
     setForm({ category: "food", amount: "", date: new Date().toISOString().slice(0, 10), note: "" });
   }
 
   function handleAddGoal() {
-    if (!goalForm.name || !goalForm.targetAmount) return;
+    if (!goalForm.name || !goalForm.targetAmount || Number(goalForm.targetAmount) <= 0) {
+      pushToast("error", "Please enter goal name and target amount");
+      return;
+    }
+    const safeTargetDate = goalForm.targetDate
+      ? new Date(goalForm.targetDate).toISOString()
+      : new Date(Date.now() + 180 * 86400000).toISOString();
+
     addGoal({
-      workerId: userId,
+      workerId: currentUserId,
       name: goalForm.name,
       targetAmount: Number(goalForm.targetAmount),
       currentAmount: Number(goalForm.currentAmount || 0),
-      targetDate: new Date(goalForm.targetDate).toISOString(),
+      targetDate: safeTargetDate,
     });
     setGoalOpen(false);
     setGoalForm({ name: "", targetAmount: "", currentAmount: "0", targetDate: "" });
+  }
+
+  function handleDeposit() {
+    if (!selectedGoal || !depositAmount || Number(depositAmount) <= 0) {
+      pushToast("error", "Please enter a valid deposit amount");
+      return;
+    }
+    contributeToSavingsGoal(selectedGoal.id, Number(depositAmount));
+    setDepositOpen(false);
+    setDepositAmount("");
+    setSelectedGoal(null);
   }
 
   return (
@@ -106,19 +139,7 @@ export default function WorkerExpensesPage() {
           <CardSubtitle>Last 5 months</CardSubtitle>
         </CardHeader>
         <CardBody>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyData}>
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
-                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} formatter={(v: any) => formatINR(v as number)} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="income" fill="#178B4A" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expense" fill="#D92D20" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="savings" fill="#2367C9" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <ExpensesBarChart data={monthlyData} />
         </CardBody>
       </Card>
 
@@ -202,9 +223,19 @@ export default function WorkerExpensesPage() {
                         <span>{formatINR(g.currentAmount)} saved</span>
                         <span>of {formatINR(g.targetAmount)}</span>
                       </div>
-                      <ProgressBar value={g.currentAmount} max={g.targetAmount} color={pct >= 75 ? "#178B4A" : "#F4511E"} />
+                      <ProgressBar value={g.currentAmount} max={g.targetAmount} color={pct >= 75 ? "#137B3E" : "#D84315"} />
                     </div>
-                    <Button size="sm" variant="secondary" className="mt-3 w-full">Add money</Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="mt-3 w-full"
+                      onClick={() => {
+                        setSelectedGoal(g);
+                        setDepositOpen(true);
+                      }}
+                    >
+                      Add money
+                    </Button>
                   </div>
                 );
               })}
@@ -220,7 +251,7 @@ export default function WorkerExpensesPage() {
         <CardBody className="p-0">
           <div className="divide-y divide-gray-200">
             {expenses.slice(0, 10).map((e) => {
-              const meta = CATEGORY_META[e.category];
+              const meta = CATEGORY_META[e.category] || CATEGORY_META.other;
               return (
                 <div key={e.id} className="px-5 py-3 flex items-center gap-3">
                   <div className="h-9 w-9 rounded-lg flex items-center justify-center" style={{ background: `${meta.color}20`, color: meta.color }}>
@@ -230,7 +261,14 @@ export default function WorkerExpensesPage() {
                     <div className="text-sm font-medium text-navy-900 capitalize">{e.category}</div>
                     <div className="text-xs text-gray-600">{formatDate(e.date)}{e.note ? ` · ${e.note}` : ""}</div>
                   </div>
-                  <div className="text-sm font-semibold text-navy-900">−{formatINR(e.amount)}</div>
+                  <div className="text-sm font-semibold text-navy-900 mr-2">−{formatINR(e.amount)}</div>
+                  <button
+                    onClick={() => deleteExpense(e.id)}
+                    title="Delete expense"
+                    className="text-gray-400 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 transition"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               );
             })}
@@ -265,6 +303,25 @@ export default function WorkerExpensesPage() {
           <div className="flex gap-2 justify-end">
             <Button variant="secondary" onClick={() => setGoalOpen(false)}>Cancel</Button>
             <Button onClick={handleAddGoal}>Create goal</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={depositOpen} onClose={() => setDepositOpen(false)} title={`Add Money to ${selectedGoal?.name ?? "Goal"}`}>
+        <div className="space-y-3">
+          <p className="text-sm text-gray-700">
+            Current progress: <span className="font-semibold text-navy-900">{formatINR(selectedGoal?.currentAmount ?? 0)}</span> of <span className="font-semibold text-navy-900">{formatINR(selectedGoal?.targetAmount ?? 0)}</span>
+          </p>
+          <Input
+            label="Deposit Amount (₹)"
+            type="number"
+            placeholder="e.g. 500"
+            value={depositAmount}
+            onChange={(e) => setDepositAmount(e.target.value)}
+          />
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="secondary" onClick={() => setDepositOpen(false)}>Cancel</Button>
+            <Button onClick={handleDeposit}>Deposit Money</Button>
           </div>
         </div>
       </Modal>

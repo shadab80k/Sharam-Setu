@@ -77,7 +77,7 @@ export default function AnalyticsPage() {
                 <BarChart data={incomeImprovement}>
                   <XAxis dataKey="m" axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} tickFormatter={(v) => formatINRShort(v)} />
-                  <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} formatter={(v: any) => formatINR(v as number)} />
+                  <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} formatter={(v: any) => formatINR(v as number)} />
                   <Bar dataKey="v" fill="#F4511E" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -185,7 +185,7 @@ export default function AnalyticsPage() {
                 <BarChart data={skills} layout="vertical">
                   <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
                   <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} width={70} />
-                  <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} formatter={(v: any) => `${v}%`} />
+                  <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} formatter={(v: any) => `${v}%`} />
                   <Bar dataKey="demand" fill="#7047C6" radius={[0, 6, 6, 0]} />
                 </BarChart>
               </ResponsiveContainer>

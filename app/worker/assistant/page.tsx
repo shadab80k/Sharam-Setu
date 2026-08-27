@@ -14,16 +14,21 @@ import type { ChatMessage } from "@/lib/types";
 import Link from "next/link";
 
 export default function WorkerAssistantPage() {
-  const userId = "usr_w_1";
+  const currentUserId = useStore((s) => s.currentUserId) || "usr_w_1";
+  const user = useStore((s) => s.users.find((u) => u.id === currentUserId));
   const addChatMessage = useStore((s) => s.addChatMessage);
-  const chatHistory = useStore((s) => s.chatHistory[userId] ?? []);
-  const profile = useStore((s) => s.workerProfiles.find((p) => p.userId === userId));
-  const jobs = useStore((s) => s.jobs);
+  const clearChat = useStore((s) => s.clearChat);
+  const chatHistory = useStore((s) => s.chatHistory[currentUserId] ?? []);
+  const profile = useStore((s) => s.workerProfiles.find((p) => p.userId === currentUserId));
+  const jobs = useStore((s) => s.jobs.filter((j) => j.status === "active"));
   const applications = useStore((s) => s.applications);
-  const payments = useStore((s) => s.payments);
-  const expenses = useStore((s) => s.expenses);
-  const savingsGoals = useStore((s) => s.savingsGoals);
-  const unreadNotifications = useStore((s) => s.notifications.filter((n) => !n.read && n.userId === userId));
+  const payments = useStore((s) => s.payments.filter((p) => p.workerId === currentUserId));
+  const expenses = useStore((s) => s.expenses.filter((e) => e.workerId === currentUserId));
+  const savingsGoals = useStore((s) => s.savingsGoals.filter((g) => g.workerId === currentUserId));
+  const unreadNotifications = useStore((s) => s.notifications.filter((n) => !n.read && n.userId === currentUserId));
+
+  const pendingAmount = payments.filter((p) => p.status !== "paid").reduce((s, p) => s + p.amount, 0);
+  const pendingCount = payments.filter((p) => p.status !== "paid").length;
 
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
@@ -41,7 +46,7 @@ export default function WorkerAssistantPage() {
       content: text,
       createdAt: new Date().toISOString(),
     };
-    addChatMessage(userId, userMsg);
+    addChatMessage(currentUserId, userMsg);
     setInput("");
     setThinking(true);
     setTimeout(() => {
@@ -56,7 +61,7 @@ export default function WorkerAssistantPage() {
         intent: response.intent,
         cta: response.cta,
       };
-      addChatMessage(userId, aiMsg);
+      addChatMessage(currentUserId, aiMsg);
       if (response.suggestions) {
         response.suggestions.forEach((s) => {
           const sugMsg: ChatMessage = {
@@ -65,7 +70,7 @@ export default function WorkerAssistantPage() {
             content: `💡 ${s}`,
             createdAt: new Date().toISOString(),
           };
-          addChatMessage(userId, sugMsg);
+          addChatMessage(currentUserId, sugMsg);
         });
       }
       setThinking(false);
@@ -98,7 +103,14 @@ export default function WorkerAssistantPage() {
                 <CardSubtitle>Your personal career, money, and jobs assistant</CardSubtitle>
               </div>
             </div>
-            <Badge variant="purple" size="sm">Mock AI · v1</Badge>
+            <div className="flex items-center gap-2">
+              {chatHistory.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={() => clearChat(currentUserId)}>
+                  Clear
+                </Button>
+              )}
+              <Badge variant="purple" size="sm">AI Coach</Badge>
+            </div>
           </CardHeader>
 
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 bg-cream-50">
@@ -107,7 +119,7 @@ export default function WorkerAssistantPage() {
                 <div className="h-12 w-12 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center mx-auto">
                   <Sparkles className="h-5 w-5" />
                 </div>
-                <h3 className="text-base font-semibold text-navy-900 mt-3">Hi {profile?.profession} Ramesh 👋</h3>
+                <h3 className="text-base font-semibold text-navy-900 mt-3">Hi {profile?.profession} {user?.name?.split(" ")[0]} 👋</h3>
                 <p className="text-sm text-gray-600 mt-1 max-w-md mx-auto">
                   I'm here to help with jobs, wages, payments, and career growth. Try one of the suggestions below.
                 </p>
@@ -122,7 +134,7 @@ export default function WorkerAssistantPage() {
                       <Sparkles className="h-4 w-4" />
                     </div>
                   ) : (
-                    <Avatar name={profile?.profession ?? "You"} size={32} className="flex-shrink-0" />
+                    <Avatar name={user?.name ?? "You"} size={32} className="flex-shrink-0" />
                   )}
                   <div>
                     {msg.intent && msg.role === "assistant" && (
@@ -200,18 +212,18 @@ export default function WorkerAssistantPage() {
             <CardBody className="space-y-2">
               <div className="p-3 rounded-lg bg-green-100">
                 <div className="text-[10px] uppercase tracking-wider text-green-600 font-semibold">Pending payment</div>
-                <div className="text-base font-bold text-navy-900 mt-1">{formatINR(2400)}</div>
-                <div className="text-xs text-gray-600">From 2 contractors</div>
+                <div className="text-base font-bold text-navy-900 mt-1">{formatINR(pendingAmount)}</div>
+                <div className="text-xs text-gray-600">{pendingCount} pending payment(s)</div>
               </div>
               <div className="p-3 rounded-lg bg-blue-100">
-                <div className="text-[10px] uppercase tracking-wider text-blue-600 font-semibold">New jobs</div>
-                <div className="text-base font-bold text-navy-900 mt-1">3 matching</div>
-                <div className="text-xs text-gray-600">Within 5 km</div>
+                <div className="text-[10px] uppercase tracking-wider text-blue-600 font-semibold">Available jobs</div>
+                <div className="text-base font-bold text-navy-900 mt-1">{jobs.length} jobs</div>
+                <div className="text-xs text-gray-600">In your area</div>
               </div>
               <div className="p-3 rounded-lg bg-purple-100">
                 <div className="text-[10px] uppercase tracking-wider text-purple-600 font-semibold">Trust score</div>
                 <div className="text-base font-bold text-navy-900 mt-1">{profile?.trustScore}/100</div>
-                <div className="text-xs text-gray-600">+6 this month</div>
+                <div className="text-xs text-gray-600">{profile?.trustLabel}</div>
               </div>
             </CardBody>
           </Card>

@@ -13,17 +13,24 @@ import { formatINR, formatINRShort } from "@/lib/utils";
 import { calculateMatchScore } from "@/lib/services/jobMatching";
 import { CITIES } from "@/lib/utils/cities";
 import { useMemo } from "react";
-import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 
+const DashboardIncomeChart = dynamic(() => import("@/components/features/DashboardIncomeChart"), {
+  ssr: false,
+  loading: () => <div className="h-48 w-full rounded-lg bg-gray-100 animate-pulse" />,
+});
+
 export default function WorkerDashboard() {
-  const userId = "usr_w_1";
-  const user = useStore((s) => s.users.find((u) => u.id === userId));
-  const profile = useStore((s) => s.workerProfiles.find((p) => p.userId === userId));
+  const currentUserId = useStore((s) => s.currentUserId) || "usr_w_1";
+  const user = useStore((s) => s.users.find((u) => u.id === currentUserId));
+  const profile = useStore((s) => s.workerProfiles.find((p) => p.userId === currentUserId));
   const jobs = useStore((s) => s.jobs.filter((j) => j.status === "active"));
-  const payments = useStore((s) => s.payments.filter((p) => p.workerId === userId));
-  const expenses = useStore((s) => s.expenses.filter((e) => e.workerId === userId));
+  const payments = useStore((s) => s.payments.filter((p) => p.workerId === currentUserId));
+  const expenses = useStore((s) => s.expenses.filter((e) => e.workerId === currentUserId));
   const currentLocation = useStore((s) => s.currentLocation);
+  const setLocation = useStore((s) => s.setLocation);
+  const toggleWorkerAvailability = useStore((s) => s.toggleWorkerAvailability);
   const city = CITIES.find((c) => c.id === currentLocation) || CITIES[0];
 
   const todaysIncome = payments.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
@@ -69,13 +76,29 @@ export default function WorkerDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={profile.availability === "available" ? "green" : "amber"}>
-            <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse-slow" />
-            {profile.availability === "available" ? "Available for work" : profile.availability}
-          </Badge>
-          <Button variant="secondary" size="sm">
-            <MapPin className="h-3.5 w-3.5" /> {city.name}
-          </Button>
+          <button
+            onClick={() => toggleWorkerAvailability(currentUserId)}
+            title="Click to toggle availability"
+            className="cursor-pointer"
+          >
+            <Badge variant={profile.availability === "available" ? "green" : "amber"}>
+              <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse-slow" />
+              {profile.availability === "available" ? "Available for work" : "Working / Busy"}
+            </Badge>
+          </button>
+          <div className="relative group">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                const nextIdx = (CITIES.findIndex((c) => c.id === currentLocation) + 1) % CITIES.length;
+                setLocation(CITIES[nextIdx].id);
+              }}
+              title="Click to change location"
+            >
+              <MapPin className="h-3.5 w-3.5 text-orange-600" /> {city.name}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -199,16 +222,7 @@ export default function WorkerDashboard() {
             <Badge variant="green" iconLeft={<ArrowUpRight className="h-3 w-3" />}>+18%</Badge>
           </CardHeader>
           <CardBody>
-            <div className="h-48">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={incomeChart}>
-                  <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
-                  <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} />
-                  <Line type="monotone" dataKey="income" stroke="#F4511E" strokeWidth={2.5} dot={{ fill: "#F4511E", r: 4 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            <DashboardIncomeChart data={incomeChart} />
           </CardBody>
         </Card>
 

@@ -47,7 +47,21 @@ const COURSES = [
   { title: "Site Safety Certification", provider: "BIS", duration: "2 weeks", impact: "+5 trust" },
 ];
 
+import { Modal } from "@/components/ui/Modal";
+import { useState } from "react";
+import { useStore } from "@/lib/store";
+
 export default function WorkerCareerPage() {
+  const currentUserId = useStore((s) => s.currentUserId) || "usr_w_1";
+  const enrollCourse = useStore((s) => s.enrollCourse);
+  const enrolledCourses = useStore((s) => s.enrolledCourses || []);
+
+  const [selectedRole, setSelectedRole] = useState<typeof PATH[0] | null>(null);
+
+  const handleEnroll = (courseTitle: string) => {
+    enrollCourse(currentUserId, courseTitle);
+  };
+
   return (
     <div className="space-y-5 max-w-5xl">
       <Card className="bg-navy-900 text-white border-navy-900 overflow-hidden relative">
@@ -96,7 +110,11 @@ export default function WorkerCareerPage() {
                           {p.learning !== "—" && <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {p.learning}</span>}
                         </div>
                       </div>
-                      {!p.current && <Button variant="secondary" size="sm">Learn how</Button>}
+                      {!p.current && (
+                        <Button variant="secondary" size="sm" onClick={() => setSelectedRole(p)}>
+                          Learn how
+                        </Button>
+                      )}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {p.skills.map((s) => (
@@ -118,22 +136,32 @@ export default function WorkerCareerPage() {
             <CardSubtitle>Free and subsidized training near you</CardSubtitle>
           </CardHeader>
           <CardBody className="space-y-3">
-            {COURSES.map((c) => (
-              <div key={c.title} className="p-4 rounded-lg border border-gray-200 hover:border-orange-500/40 transition flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-semibold text-navy-900">{c.title}</div>
-                  <div className="text-xs text-gray-600 mt-0.5 flex items-center gap-2">
-                    <span>{c.provider}</span>
-                    <span>·</span>
-                    <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {c.duration}</span>
+            {COURSES.map((c) => {
+              const isEnrolled = enrolledCourses.some((item) => item.courseTitle === c.title && item.userId === currentUserId);
+              return (
+                <div key={c.title} className="p-4 rounded-lg border border-gray-200 hover:border-orange-500/40 transition flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-navy-900">{c.title}</div>
+                    <div className="text-xs text-gray-600 mt-0.5 flex items-center gap-2">
+                      <span>{c.provider}</span>
+                      <span>·</span>
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {c.duration}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="green">{c.impact}</Badge>
+                    <Button
+                      size="sm"
+                      variant={isEnrolled ? "primary" : "secondary"}
+                      iconRight={isEnrolled ? <CheckCircle2 className="h-3.5 w-3.5" /> : <ArrowRight className="h-3.5 w-3.5" />}
+                      onClick={() => handleEnroll(c.title)}
+                    >
+                      {isEnrolled ? "Enrolled" : "Enroll"}
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Badge variant="green">{c.impact}</Badge>
-                  <Button size="sm" variant="secondary" iconRight={<ArrowRight className="h-3.5 w-3.5" />}>Enroll</Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </CardBody>
         </Card>
 
@@ -154,6 +182,44 @@ export default function WorkerCareerPage() {
           </CardBody>
         </Card>
       </div>
+
+      {/* Stage Details Modal */}
+      <Modal open={!!selectedRole} onClose={() => setSelectedRole(null)} title={`Career Roadmap: ${selectedRole?.role}`}>
+        <div className="space-y-4">
+          <div className="p-4 rounded-xl bg-orange-50 border border-orange-100 space-y-2">
+            <div className="text-xs uppercase tracking-wider text-orange-600 font-semibold">Target Earning</div>
+            <div className="text-2xl font-bold text-navy-900">{selectedRole?.wage}</div>
+            <p className="text-xs text-gray-700">
+              Estimated wage increase of <span className="font-bold text-green-600">{selectedRole?.boost}</span> with <span className="font-semibold">{selectedRole?.demand} market demand</span>.
+            </p>
+          </div>
+
+          <div>
+            <h4 className="text-sm font-bold text-navy-900 mb-1.5">Required Skills to Master:</h4>
+            <div className="flex flex-wrap gap-1.5">
+              {selectedRole?.skills.map((s) => (
+                <Badge key={s} variant="orange">{s}</Badge>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h4 className="text-sm font-bold text-navy-900 mb-1.5">Preparation Time:</h4>
+            <p className="text-sm text-gray-700">
+              Approximately <span className="font-semibold text-navy-900">{selectedRole?.learning}</span> of hands-on vocational training or on-site apprenticeship.
+            </p>
+          </div>
+
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="secondary" onClick={() => setSelectedRole(null)}>Close</Button>
+            <Link href="/worker/assistant">
+              <Button variant="ai" onClick={() => setSelectedRole(null)}>
+                Ask AI Roadmap Plan
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

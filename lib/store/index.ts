@@ -27,6 +27,7 @@ import type {
   ExpenseCategory,
   ReportCategory,
   ReportSeverity,
+  WorkHistory,
 } from "@/lib/types";
 import { randomId, clamp } from "@/lib/utils";
 import { calculateTrustScore, calculateContractorTrust } from "@/lib/services/trustEngine";
@@ -37,6 +38,8 @@ interface AppState extends SeedData {
   chatHistory: Record<string, ChatMessage[]>;
   dismissedOnboarding: boolean;
   toasts: { id: string; type: "success" | "error" | "info"; message: string }[];
+  savedJobIds: string[];
+  enrolledCourses: { userId: string; courseTitle: string; enrolledAt: string }[];
 
   // Auth
   login: (userId: string) => void;
@@ -57,10 +60,22 @@ interface AppState extends SeedData {
 
   // Worker actions
   updateWorkerProfile: (userId: string, patch: Partial<WorkerProfile>) => void;
+  toggleWorkerAvailability: (userId: string) => void;
+  addSkill: (userId: string, skill: string) => void;
+  removeSkill: (userId: string, skill: string) => void;
+  addCertification: (userId: string, certName: string) => void;
+  addWorkHistory: (record: Omit<WorkHistory, "id">) => void;
+  requestVerification: (userId: string, type: Verification["type"]) => void;
+  addIncome: (payment: Omit<Payment, "id">) => void;
   addExpense: (workerId: string, expense: Omit<Expense, "id" | "workerId">) => void;
+  deleteExpense: (expenseId: string) => void;
   addSavingsGoal: (goal: Omit<SavingsGoal, "id">) => void;
+  contributeToSavingsGoal: (goalId: string, amount: number) => void;
   completeAssessment: (workerId: string, skillName: string, score: number) => void;
   applyToJob: (jobId: string, workerId: string, matchScore: number) => void;
+  withdrawApplication: (appId: string) => void;
+  toggleSaveJob: (jobId: string) => void;
+  enrollCourse: (userId: string, courseTitle: string) => void;
   markPaymentReceived: (paymentId: string) => void;
 
   // Contractor actions
@@ -113,6 +128,8 @@ export const useStore = create<AppState>()(
       chatHistory: {},
       dismissedOnboarding: false,
       toasts: [],
+      savedJobIds: [],
+      enrolledCourses: [],
 
       login: (userId) => set({ currentUserId: userId }),
       logout: () => set({ currentUserId: null }),
@@ -182,7 +199,7 @@ export const useStore = create<AppState>()(
             profile,
             verifications: get().verifications,
             assessments: get().assessments,
-            workHistory: [], // could be expanded
+            workHistory: get().workHistory,
             applications: get().applications,
             payments: get().payments,
             safetyReports: get().safetyReports,
@@ -196,16 +213,136 @@ export const useStore = create<AppState>()(
         }
       },
 
+      toggleWorkerAvailability: (userId) => {
+        const profile = get().workerProfiles.find((p) => p.userId === userId);
+        if (!profile) return;
+        const nextStatus: WorkerProfile["availability"] =
+          profile.availability === "available" ? "working" : "available";
+        get().updateWorkerProfile(userId, { availability: nextStatus });
+        get().pushToast(
+          "info",
+          `Status updated to ${nextStatus === "available" ? "Available for work" : "Working / Busy"}`
+        );
+      },
+
+      addSkill: (userId, skill) => {
+        const profile = get().workerProfiles.find((p) => p.userId === userId);
+        if (!profile || profile.skills.some((s) => s.toLowerCase() === skill.toLowerCase())) return;
+        const updatedSkills = [...profile.skills, skill];
+        get().updateWorkerProfile(userId, {
+          skills: updatedSkills,
+          profileCompletion: Math.min(100, profile.profileCompletion + 2),
+        });
+        get().pushToast("success", `Skill "${skill}" added to profile`);
+      },
+
+      removeSkill: (userId, skill) => {
+        const profile = get().workerProfiles.find((p) => p.userId === userId);
+        if (!profile) return;
+        const updatedSkills = profile.skills.filter((s) => s !== skill);
+        get().updateWorkerProfile(userId, { skills: updatedSkills });
+        get().pushToast("info", `Skill "${skill}" removed`);
+      },
+
+      addCertification: (userId, certName) => {
+        const profile = get().workerProfiles.find((p) => p.userId === userId);
+        if (!profile || profile.certifications.includes(certName)) return;
+        const updatedCerts = [...profile.certifications, certName];
+        get().updateWorkerProfile(userId, {
+          certifications: updatedCerts,
+          profileCompletion: Math.min(100, profile.profileCompletion + 5),
+        });
+        get().addNotification({
+          userId,
+          type: "trust",
+          title: "Certification added",
+          message: `+4 Trust score for certification: ${certName}`,
+          link: "/worker/trust",
+        });
+        get().pushToast("success", `Certification "${certName}" added! (+4 Trust)`);
+      },
+
+      addWorkHistory: (record) => {
+        const newRecord: WorkHistory = {
+          ...record,
+          id: randomId("wh"),
+        };
+        set({ workHistory: [newRecord, ...get().workHistory] });
+        get().updateWorkerProfile(record.workerId, {
+          completedJobs: (get().workerProfiles.find((p) => p.userId === record.workerId)?.completedJobs ?? 0) + 1,
+        });
+        get().pushToast("success", "Work history record added successfully");
+      },
+
+      requestVerification: (userId, type) => {
+        const existing = get().verifications.find((v) => v.userId === userId && v.type === type);
+        if (existing) {
+          set({
+            verifications: get().verifications.map((v) =>
+              v.id === existing.id
+                ? { ...v, status: "verified" as const, score: 95, verifiedAt: new Date().toISOString() }
+                : v
+            ),
+          });
+        } else {
+          const newV: Verification = {
+            id: randomId("ver"),
+            userId,
+            type,
+            status: "verified",
+            score: 90,
+            verifiedAt: new Date().toISOString(),
+          };
+          set({ verifications: [newV, ...get().verifications] });
+        }
+        get().updateWorkerProfile(userId, {
+          profileCompletion: Math.min(100, (get().workerProfiles.find((p) => p.userId === userId)?.profileCompletion ?? 80) + 5),
+        });
+        get().addNotification({
+          userId,
+          type: "verification",
+          title: "Verification completed",
+          message: `Your ${type.replace("-", " ")} has been successfully verified (+10 Trust).`,
+          link: "/worker/trust",
+        });
+        get().pushToast("success", `${type.replace("-", " ").toUpperCase()} verified! Trust Score boosted.`);
+      },
+
+      addIncome: (payment) => {
+        const newPayment: Payment = {
+          ...payment,
+          id: randomId("pay"),
+          paidDate: payment.status === "paid" ? (payment.paidDate || new Date().toISOString()) : undefined,
+        };
+        set({ payments: [newPayment, ...get().payments] });
+        get().pushToast("success", `Income of ₹${payment.amount} recorded`);
+      },
+
       addExpense: (workerId, expense) => {
         const e: Expense = { ...expense, id: randomId("exp"), workerId };
         set({ expenses: [e, ...get().expenses] });
         get().pushToast("success", `Expense of ₹${expense.amount} added`);
       },
 
+      deleteExpense: (expenseId) => {
+        set({ expenses: get().expenses.filter((e) => e.id !== expenseId) });
+        get().pushToast("info", "Expense removed");
+      },
+
       addSavingsGoal: (goal) => {
         const g: SavingsGoal = { ...goal, id: randomId("sav") };
         set({ savingsGoals: [g, ...get().savingsGoals] });
         get().pushToast("success", "Savings goal created");
+      },
+
+      contributeToSavingsGoal: (goalId, amount) => {
+        set({
+          savingsGoals: get().savingsGoals.map((g) =>
+            g.id === goalId ? { ...g, currentAmount: g.currentAmount + amount } : g
+          ),
+        });
+        const goal = get().savingsGoals.find((g) => g.id === goalId);
+        get().pushToast("success", `Added ₹${amount} to "${goal?.name ?? "Savings Goal"}"!`);
       },
 
       completeAssessment: (workerId, skillName, score) => {
@@ -232,6 +369,11 @@ export const useStore = create<AppState>()(
       },
 
       applyToJob: (jobId, workerId, matchScore) => {
+        const existing = get().applications.find((a) => a.jobId === jobId && a.workerId === workerId);
+        if (existing) {
+          get().pushToast("info", "You have already applied to this job");
+          return;
+        }
         const app: Application = {
           id: randomId("app"),
           jobId,
@@ -253,6 +395,44 @@ export const useStore = create<AppState>()(
           });
         }
         get().pushToast("success", "Application sent");
+      },
+
+      withdrawApplication: (appId) => {
+        const app = get().applications.find((a) => a.id === appId);
+        set({ applications: get().applications.filter((a) => a.id !== appId) });
+        if (app) {
+          get().pushToast("info", "Application withdrawn");
+        }
+      },
+
+      toggleSaveJob: (jobId) => {
+        const isSaved = get().savedJobIds.includes(jobId);
+        if (isSaved) {
+          set({ savedJobIds: get().savedJobIds.filter((id) => id !== jobId) });
+          get().pushToast("info", "Job removed from saved");
+        } else {
+          set({ savedJobIds: [...get().savedJobIds, jobId] });
+          get().pushToast("success", "Job saved for later");
+        }
+      },
+
+      enrollCourse: (userId, courseTitle) => {
+        const existing = get().enrolledCourses?.find((c) => c.userId === userId && c.courseTitle === courseTitle);
+        if (existing) {
+          get().pushToast("info", `Already enrolled in ${courseTitle}`);
+          return;
+        }
+        set({
+          enrolledCourses: [...(get().enrolledCourses || []), { userId, courseTitle, enrolledAt: new Date().toISOString() }],
+        });
+        get().addNotification({
+          userId,
+          type: "ai",
+          title: "Course Enrolled",
+          message: `You enrolled in ${courseTitle}. Training schedule sent via SMS.`,
+          link: "/worker/career",
+        });
+        get().pushToast("success", `Successfully enrolled in ${courseTitle}!`);
       },
 
       markPaymentReceived: (paymentId) => {

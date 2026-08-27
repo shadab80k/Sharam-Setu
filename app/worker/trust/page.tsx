@@ -8,41 +8,163 @@ import { Button } from "@/components/ui/Button";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { calculateTrustScore } from "@/lib/services/trustEngine";
 import { ShieldCheck, ArrowUpRight, Sparkles, BookOpen, FileCheck2, Award, AlertTriangle, Clock } from "lucide-react";
-import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import Link from "next/link";
 import { timeAgo } from "@/lib/utils";
+import dynamic from "next/dynamic";
+
+const TrustLineChart = dynamic(() => import("@/components/features/TrustLineChart"), {
+  ssr: false,
+  loading: () => <div className="h-56 w-full rounded-lg bg-gray-100 animate-pulse" />,
+});
+
+import { Modal } from "@/components/ui/Modal";
+import { Input, Select } from "@/components/ui/Input";
+import { useState } from "react";
 
 export default function WorkerTrustPage() {
-  const userId = "usr_w_1";
-  const user = useStore((s) => s.users.find((u) => u.id === userId));
-  const profile = useStore((s) => s.workerProfiles.find((p) => p.userId === userId));
+  const currentUserId = useStore((s) => s.currentUserId) || "usr_w_1";
+  const user = useStore((s) => s.users.find((u) => u.id === currentUserId));
+  const profile = useStore((s) => s.workerProfiles.find((p) => p.userId === currentUserId));
   const verifications = useStore((s) => s.verifications);
   const assessments = useStore((s) => s.assessments);
   const applications = useStore((s) => s.applications);
   const payments = useStore((s) => s.payments);
   const safetyReports = useStore((s) => s.safetyReports);
   const fraudSignals = useStore((s) => s.fraudSignals);
-  const events = useStore((s) => s.trustEvents.filter((e) => e.userId === userId));
+  const workHistory = useStore((s) => s.workHistory);
+  const events = useStore((s) => s.trustEvents.filter((e) => e.userId === currentUserId));
+  const completeAssessment = useStore((s) => s.completeAssessment);
+  const addWorkHistory = useStore((s) => s.addWorkHistory);
+  const addCertification = useStore((s) => s.addCertification);
+
+  const [assessmentModalOpen, setAssessmentModalOpen] = useState(false);
+  const [workModalOpen, setWorkModalOpen] = useState(false);
+  const [certModalOpen, setCertModalOpen] = useState(false);
+
+  // Skill Quiz State
+  const [selectedSkill, setSelectedSkill] = useState("Masonry");
+  const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+
+  // Work Record State
+  const [workForm, setWorkForm] = useState({
+    role: "Mason",
+    contractorName: "Raj BuildWorks",
+    startDate: "2026-05-01",
+    endDate: "2026-06-15",
+    rating: 5,
+  });
+
+  // Cert Form State
+  const [certName, setCertName] = useState("");
 
   if (!user || !profile) return null;
 
   const result = calculateTrustScore({
-    user, profile, verifications, assessments, workHistory: [], applications, payments, safetyReports, fraudSignals,
+    user,
+    profile,
+    verifications,
+    assessments,
+    workHistory,
+    applications,
+    payments,
+    safetyReports,
+    fraudSignals,
   });
 
   const trendData = [
-    { month: "Jan", score: 45 },
-    { month: "Feb", score: 52 },
-    { month: "Mar", score: 61 },
-    { month: "Apr", score: 70 },
-    { month: "May", score: 78 },
-    { month: "Jun", score: 87 },
+    { month: "Jan", score: Math.max(30, result.score - 40) },
+    { month: "Feb", score: Math.max(40, result.score - 32) },
+    { month: "Mar", score: Math.max(50, result.score - 24) },
+    { month: "Apr", score: Math.max(60, result.score - 16) },
+    { month: "May", score: Math.max(70, result.score - 8) },
+    { month: "Jun", score: result.score },
   ];
 
+  const quizQuestions = [
+    {
+      q: "What is the standard ratio of cement to sand for brick masonry mortar?",
+      options: ["1:1", "1:4 to 1:6", "1:10", "1:15"],
+      correct: 1,
+    },
+    {
+      q: "Why is water curing necessary for newly constructed concrete / brick structures?",
+      options: [
+        "To clean dust",
+        "To prevent overheating and achieve proper hydration strength",
+        "To make paint adhere faster",
+        "It is only done for aesthetic look",
+      ],
+      correct: 1,
+    },
+    {
+      q: "Which tool is essential for checking vertical alignment of walls?",
+      options: ["Plumb bob (Sahul)", "Trowel", "Measuring Tape", "Hand Saw"],
+      correct: 0,
+    },
+  ];
+
+  const handleFinishQuiz = () => {
+    let scoreCount = 0;
+    quizQuestions.forEach((q, idx) => {
+      if (quizAnswers[idx] === q.correct) scoreCount += 1;
+    });
+    const finalScore = Math.round((scoreCount / quizQuestions.length) * 100);
+    completeAssessment(currentUserId, selectedSkill, Math.max(75, finalScore));
+    setQuizSubmitted(true);
+    setTimeout(() => {
+      setAssessmentModalOpen(false);
+      setQuizSubmitted(false);
+      setQuizAnswers({});
+    }, 1200);
+  };
+
+  const handleSaveWorkHistory = () => {
+    addWorkHistory({
+      workerId: currentUserId,
+      contractorId: "usr_c_1",
+      jobId: "custom_job",
+      role: workForm.role,
+      startDate: workForm.startDate,
+      endDate: workForm.endDate,
+      verified: true,
+      rating: workForm.rating,
+    });
+    setWorkModalOpen(false);
+  };
+
+  const handleSaveCert = () => {
+    if (!certName.trim()) return;
+    addCertification(currentUserId, certName.trim());
+    setCertName("");
+    setCertModalOpen(false);
+  };
+
   const improvements = [
-    { icon: <BookOpen className="h-4 w-4" />, title: "Complete skill assessment", desc: "Earn up to +10 trust", impact: 10, color: "purple" },
-    { icon: <FileCheck2 className="h-4 w-4" />, title: "Verify work history", desc: "Add previous job records", impact: 6, color: "blue" },
-    { icon: <Award className="h-4 w-4" />, title: "Add certification", desc: "Upload training certificate", impact: 4, color: "green" },
+    {
+      icon: <BookOpen className="h-4 w-4" />,
+      title: "Complete skill assessment",
+      desc: "Take quick 3-question quiz (+8 trust)",
+      impact: 8,
+      color: "purple",
+      action: () => setAssessmentModalOpen(true),
+    },
+    {
+      icon: <FileCheck2 className="h-4 w-4" />,
+      title: "Verify work history",
+      desc: "Add completed job records (+6 trust)",
+      impact: 6,
+      color: "blue",
+      action: () => setWorkModalOpen(true),
+    },
+    {
+      icon: <Award className="h-4 w-4" />,
+      title: "Add certification",
+      desc: "Add training certificates (+4 trust)",
+      impact: 4,
+      color: "green",
+      action: () => setCertModalOpen(true),
+    },
   ] as const;
 
   return (
@@ -75,16 +197,7 @@ export default function WorkerTrustPage() {
               <CardSubtitle>Your trust score over the last 6 months</CardSubtitle>
             </CardHeader>
             <CardBody>
-              <div className="h-56">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={trendData}>
-                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
-                    <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
-                    <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} />
-                    <Line type="monotone" dataKey="score" stroke="#178B4A" strokeWidth={3} dot={{ fill: "#178B4A", r: 5 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+              <TrustLineChart data={trendData} />
             </CardBody>
           </Card>
 
@@ -149,11 +262,15 @@ export default function WorkerTrustPage() {
           <Card>
             <CardHeader>
               <CardTitle>Improve your score</CardTitle>
-              <CardSubtitle>Quick wins to climb higher</CardSubtitle>
+              <CardSubtitle>Click any option below to boost score</CardSubtitle>
             </CardHeader>
             <CardBody className="space-y-3">
               {improvements.map((i) => (
-                <div key={i.title} className="p-3 rounded-lg border border-gray-200 hover:border-orange-500/40 transition">
+                <div
+                  key={i.title}
+                  onClick={i.action}
+                  className="p-3 rounded-lg border border-gray-200 hover:border-orange-500/40 hover:bg-cream-50 cursor-pointer transition"
+                >
                   <div className="flex items-start gap-2.5">
                     <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                       i.color === "purple" ? "bg-purple-100 text-purple-600" :
@@ -178,7 +295,7 @@ export default function WorkerTrustPage() {
                 <div className="text-sm font-semibold text-purple-600">AI Trust Coach</div>
               </div>
               <p className="text-sm text-navy-900">
-                Complete one skill assessment and verify your last 2 work records to reach <span className="font-bold">90+ High Trust</span> within 2 weeks.
+                Complete one skill assessment and verify your last 2 work records to reach <span className="font-bold">90+ High Trust</span>.
               </p>
               <Link href="/worker/assistant">
                 <Button variant="ai" size="sm" fullWidth className="mt-3">Ask the AI coach</Button>
@@ -187,6 +304,147 @@ export default function WorkerTrustPage() {
           </Card>
         </div>
       </div>
+
+      {/* Skill Assessment Quiz Modal */}
+      <Modal open={assessmentModalOpen} onClose={() => setAssessmentModalOpen(false)} title="Skill Assessment Quiz">
+        <div className="space-y-4">
+          <Select
+            label="Skill to Assess"
+            value={selectedSkill}
+            onChange={(e) => {
+              setSelectedSkill(e.target.value);
+              setQuizAnswers({});
+            }}
+            options={[
+              { value: "Masonry", label: "Masonry" },
+              { value: "Tiling", label: "Tile Fitting" },
+              { value: "Plastering", label: "Plastering & Finishing" },
+              { value: "Plumbing", label: "Plumbing" },
+              { value: "Wiring", label: "Electrical Wiring" },
+            ]}
+          />
+
+          {quizSubmitted ? (
+            <div className="py-8 text-center space-y-2 animate-fade-in">
+              <div className="h-12 w-12 rounded-full bg-green-600 text-white flex items-center justify-center mx-auto">
+                ✓
+              </div>
+              <h3 className="text-lg font-bold text-navy-900">Assessment Complete!</h3>
+              <p className="text-sm text-green-600 font-semibold">+8 Trust Score Earned</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {quizQuestions.map((item, qIdx) => (
+                <div key={qIdx} className="p-3.5 rounded-lg border border-gray-200 bg-white">
+                  <div className="text-sm font-semibold text-navy-900 mb-2">
+                    {qIdx + 1}. {item.q}
+                  </div>
+                  <div className="space-y-1.5">
+                    {item.options.map((opt, optIdx) => (
+                      <label
+                        key={optIdx}
+                        className={`flex items-center gap-2 p-2 rounded-md border text-xs cursor-pointer transition ${
+                          quizAnswers[qIdx] === optIdx
+                            ? "border-orange-600 bg-orange-50 font-medium text-navy-900"
+                            : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name={`q-${qIdx}`}
+                          checked={quizAnswers[qIdx] === optIdx}
+                          onChange={() => setQuizAnswers({ ...quizAnswers, [qIdx]: optIdx })}
+                          className="accent-orange-600"
+                        />
+                        <span>{opt}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              <div className="flex gap-2 justify-end pt-2">
+                <Button variant="secondary" onClick={() => setAssessmentModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleFinishQuiz}
+                  disabled={Object.keys(quizAnswers).length < quizQuestions.length}
+                >
+                  Submit & Boost Trust Score
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Add Work History Modal */}
+      <Modal open={workModalOpen} onClose={() => setWorkModalOpen(false)} title="Add Work History Record">
+        <div className="space-y-3">
+          <Input
+            label="Work Role"
+            value={workForm.role}
+            onChange={(e) => setWorkForm({ ...workForm, role: e.target.value })}
+            placeholder="e.g. Mason, Tile Fitter"
+          />
+          <Input
+            label="Contractor / Site Name"
+            value={workForm.contractorName}
+            onChange={(e) => setWorkForm({ ...workForm, contractorName: e.target.value })}
+            placeholder="e.g. Raj BuildWorks"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Start Date"
+              type="date"
+              value={workForm.startDate}
+              onChange={(e) => setWorkForm({ ...workForm, startDate: e.target.value })}
+            />
+            <Input
+              label="End Date"
+              type="date"
+              value={workForm.endDate}
+              onChange={(e) => setWorkForm({ ...workForm, endDate: e.target.value })}
+            />
+          </div>
+          <Select
+            label="Performance Rating"
+            value={String(workForm.rating)}
+            onChange={(e) => setWorkForm({ ...workForm, rating: Number(e.target.value) })}
+            options={[
+              { value: "5", label: "5 Stars (Excellent)" },
+              { value: "4", label: "4 Stars (Good)" },
+              { value: "3", label: "3 Stars (Average)" },
+            ]}
+          />
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="secondary" onClick={() => setWorkModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveWorkHistory}>Save Work Record</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add Certification Modal */}
+      <Modal open={certModalOpen} onClose={() => setCertModalOpen(false)} title="Add Certification">
+        <div className="space-y-3">
+          <Input
+            label="Certification / Course Name"
+            placeholder="e.g. Skill India Site Safety Certificate"
+            value={certName}
+            onChange={(e) => setCertName(e.target.value)}
+          />
+          <div className="p-3 rounded-lg bg-blue-50 text-xs text-blue-700">
+            Adding verified trade certificates adds +4 to +8 points to your Trust Score.
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="secondary" onClick={() => setCertModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveCert} disabled={!certName.trim()}>
+              Add Certificate
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

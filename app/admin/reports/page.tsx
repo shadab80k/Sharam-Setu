@@ -71,7 +71,7 @@ export default function AdminReportsPage() {
               <BarChart data={categoryData}>
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} allowDecimals={false} />
-                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} />
+                <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} />
                 <Bar dataKey="v" fill="#F4511E" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

@@ -13,18 +13,30 @@ import Link from "next/link";
 const TIMELINE = ["applied", "viewed", "shortlisted", "selected", "completed"] as const;
 
 export default function WorkerApplicationsPage() {
-  const apps = useStore((s) => s.applications.filter((a) => a.workerId === "usr_w_1"));
+  const currentUserId = useStore((s) => s.currentUserId) || "usr_w_1";
+  const apps = useStore((s) => s.applications.filter((a) => a.workerId === currentUserId));
   const jobs = useStore((s) => s.jobs);
   const contractors = useStore((s) => s.users);
+  const withdrawApplication = useStore((s) => s.withdrawApplication);
   const [tab, setTab] = useState<"all" | "active" | "selected" | "completed">("all");
 
   const filtered = apps.filter((a) => {
     if (tab === "all") return true;
-    if (tab === "active") return ["applied", "viewed", "shortlisted"].includes(a.status);
-    if (tab === "selected") return a.status === "selected" || a.status === "interview";
+    if (tab === "active") return ["applied", "viewed", "shortlisted", "interview"].includes(a.status);
+    if (tab === "selected") return a.status === "selected";
     if (tab === "completed") return a.status === "completed" || a.status === "rejected";
     return true;
   });
+
+  const stepMap: Record<string, number> = {
+    applied: 0,
+    viewed: 1,
+    shortlisted: 2,
+    interview: 2,
+    selected: 3,
+    completed: 4,
+    rejected: 0,
+  };
 
   return (
     <div className="space-y-5">
@@ -38,7 +50,7 @@ export default function WorkerApplicationsPage() {
         onChange={(v) => setTab(v as any)}
         items={[
           { value: "all", label: `All (${apps.length})` },
-          { value: "active", label: `Active (${apps.filter((a) => ["applied", "viewed", "shortlisted"].includes(a.status)).length})` },
+          { value: "active", label: `Active (${apps.filter((a) => ["applied", "viewed", "shortlisted", "interview"].includes(a.status)).length})` },
           { value: "selected", label: `Selected (${apps.filter((a) => a.status === "selected").length})` },
           { value: "completed", label: `Completed (${apps.filter((a) => a.status === "completed" || a.status === "rejected").length})` },
         ]}
@@ -51,26 +63,28 @@ export default function WorkerApplicationsPage() {
           filtered.map((app) => {
             const job = jobs.find((j) => j.id === app.jobId);
             const contractor = contractors.find((u) => u.id === job?.contractorId);
-            const currentStep = TIMELINE.indexOf(app.status as any);
+            const currentStep = stepMap[app.status] ?? 0;
             return (
               <Card key={app.id} className="p-5">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant="orange">{job?.category}</Badge>
+                      <Badge variant="orange">{job?.category ?? "General"}</Badge>
                       <StatusBadge status={app.status as any} />
                     </div>
                     <Link href={`/worker/jobs/${job?.id}`} className="text-base font-semibold text-navy-900 hover:text-orange-600 mt-1.5 block">
-                      {job?.title}
+                      {job?.title ?? "Construction Job"}
                     </Link>
-                    <p className="text-sm text-gray-700 mt-0.5">{contractor?.name}</p>
+                    <p className="text-sm text-gray-700 mt-0.5">{contractor?.name ?? "Contractor"}</p>
                     <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-600">
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" /> Applied {formatDate(app.appliedAt)}
                       </span>
-                      <span className="flex items-center gap-1">
-                        <Briefcase className="h-3 w-3" /> {job?.wagePerDay}/day
-                      </span>
+                      {job && (
+                        <span className="flex items-center gap-1">
+                          <Briefcase className="h-3 w-3" /> ₹{job.wagePerDay}/day
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="text-right">
@@ -83,7 +97,7 @@ export default function WorkerApplicationsPage() {
                   <div className="flex items-center gap-1">
                     {TIMELINE.map((step, i) => {
                       const reached = i <= currentStep;
-                      const isCurrent = i === currentStep;
+                      const isCurrent = i === currentStep && app.status !== "rejected";
                       return (
                         <div key={step} className="flex-1 flex items-center gap-1">
                           <div className={`flex flex-col items-center ${i === 0 ? "" : "flex-1"}`}>
@@ -121,6 +135,30 @@ export default function WorkerApplicationsPage() {
                     <CheckCircle2 className="h-3.5 w-3.5" /> You've been selected. Expect contact from the contractor.
                   </div>
                 )}
+
+                <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">
+                  <Link href={`/worker/jobs/${job?.id ?? ""}`}>
+                    <Button variant="ghost" size="sm">
+                      View Job Details
+                    </Button>
+                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link href={`/worker/assistant`}>
+                      <Button variant="ai" size="sm">
+                        Ask AI Coach
+                      </Button>
+                    </Link>
+                    {["applied", "viewed"].includes(app.status) && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => withdrawApplication(app.id)}
+                      >
+                        Withdraw
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </Card>
             );
           })

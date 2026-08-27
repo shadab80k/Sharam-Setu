@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes, forwardRef, useState } from "react";
+import { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes, forwardRef, useState, useId } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -16,7 +16,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   { label, helper, error, iconLeft, iconRight, className, id, ...rest },
   ref
 ) {
-  const inputId = id ?? `inp_${Math.random().toString(36).slice(2, 8)}`;
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
   return (
     <div className="flex flex-col gap-1.5">
       {label && (
@@ -25,7 +26,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         </label>
       )}
       <div className="relative">
-        {iconLeft && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{iconLeft}</span>}
+        {iconLeft && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600">{iconLeft}</span>}
         <input
           ref={ref}
           id={inputId}
@@ -39,12 +40,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           )}
           {...rest}
         />
-        {iconRight && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">{iconRight}</span>}
+        {iconRight && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600">{iconRight}</span>}
       </div>
       {error ? (
         <p className="text-xs text-red-600">{error}</p>
       ) : helper ? (
-        <p className="text-xs text-gray-600">{helper}</p>
+        <p className="text-xs text-gray-700">{helper}</p>
       ) : null}
     </div>
   );
@@ -60,7 +61,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
   { label, helper, error, className, id, ...rest },
   ref
 ) {
-  const inputId = id ?? `txt_${Math.random().toString(36).slice(2, 8)}`;
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
   return (
     <div className="flex flex-col gap-1.5">
       {label && (
@@ -82,7 +84,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
       {error ? (
         <p className="text-xs text-red-600">{error}</p>
       ) : helper ? (
-        <p className="text-xs text-gray-600">{helper}</p>
+        <p className="text-xs text-gray-700">{helper}</p>
       ) : null}
     </div>
   );
@@ -99,7 +101,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   { label, helper, error, options, className, id, ...rest },
   ref
 ) {
-  const inputId = id ?? `sel_${Math.random().toString(36).slice(2, 8)}`;
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
   return (
     <div className="flex flex-col gap-1.5">
       {label && (

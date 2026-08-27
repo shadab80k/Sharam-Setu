@@ -64,7 +64,7 @@ export default function AdminPaymentsPage() {
               <LineChart data={trend}>
                 <XAxis dataKey="m" axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} tickFormatter={(v) => formatINRShort(v)} />
-                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} formatter={(v: any) => formatINR(v as number)} />
+                <Tooltip cursor={{ stroke: "#EAECF0", strokeWidth: 1 }} contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} formatter={(v: any) => formatINR(v as number)} />
                 <Line type="monotone" dataKey="v" stroke="#178B4A" strokeWidth={2.5} dot={{ fill: "#178B4A", r: 4 }} />
               </LineChart>
             </ResponsiveContainer>
