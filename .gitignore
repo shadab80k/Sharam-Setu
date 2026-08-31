@@ -52,3 +52,4 @@ next-env.d.ts
 # insforge
 .insforge/
 .zcode/
+REPORT.md
