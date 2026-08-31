@@ -101,7 +101,7 @@ export function generateOtp(): string {
 }
 
 export function hashOtp(code: string): string {
-  const secret = process.env.INSFORGE_API_KEY || "ik_2063fcb27fb65c187f0aca0051c03ab9";
+  const secret = process.env.INSFORGE_API_KEY ?? "shramsetu-dev-secret";
   return crypto.createHash("sha256").update(`${code}:${secret}`).digest("hex");
 }
 
