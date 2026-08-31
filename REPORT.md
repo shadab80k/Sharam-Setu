@@ -95,6 +95,51 @@ ShramSetu is a two-sided marketplace (workers ↔ contractors) with an admin gov
 
 ## 5. ❌ Not Yet Implemented (product gaps)
 
+### 5.1 📍 Location logic — incomplete (no real location system)
+
+**Current state:**
+- `currentLocation` is a Zustand UI preference that **defaults to `"lucknow"` for every user** (`lib/store/index.ts:135`).
+- The dashboard/TopBar location button **cycles through cities round-robin** on click — a demo-era UX hack, not a real selector.
+- `navigator.geolocation` / IP-based detection is **never used** anywhere in the codebase.
+- The signup form has **no city field** — the API silently defaults location to `"lucknow"` (`app/api/auth/signup/route.ts:12`).
+- The worker profile page only **displays** `user.location`; there is no edit UI.
+- Job "Near me" filter and match distances use the selected city's **centre lat/lng** (Haversine from `lib/utils/cities`), not the user's actual position.
+
+**What a production version needs:**
+1. GPS one-tap detect (`navigator.geolocation`) with graceful fallback to city picker + IP hint.
+2. Signup onboarding: mandatory city selection (dropdown of supported cities).
+3. Profile: editable city + optional locality/area with pin-code.
+4. Persist the worker's real location on `users.location` (API already supports it — `PATCH /api/worker/profile` accepts `location`); make `currentLocation` derive from the profile instead of a separate UI state.
+5. Distance matching from the worker's actual coords (schema already has `latitude/longitude` on jobs).
+
+### 5.2 🧭 First-time-user onboarding — missing entirely
+
+**Current state:**
+- After signup, the new worker is dropped straight on `/worker/dashboard` with a near-empty profile (profession `"Helper"`, 0 experience, ₹0 wage, no skills) — no wizard, no checklist, no guidance.
+- Profile completion % is computed by the trust function, but the UI never uses it to drive a "complete your profile" flow.
+- A fresh contractor lands on the dashboard with no company details and no prompt to post a first job.
+
+**What a production version needs:**
+1. Post-signup onboarding wizard (worker): profession → experience → expected wage → skills → city/locality → languages → availability. Every field already has an API (`PATCH /api/worker/profile`) — this is a pure UI flow (~1–2 days).
+2. Onboarding checklist card on the dashboard driven by profile completion (phone verified ✓, add photo, complete skills, first assessment…).
+3. Contractor onboarding: company name, GST (optional), contact person, then "post your first job" CTA.
+
+### 5.3 ✏️ Worker profile edit UI — API ready, UI missing
+
+**Current state:** the profile API accepts **12 editable fields** — `profession, experienceYears, expectedDailyWage, availability, bio, preferredRadiusKm, languages, skills, certifications, name, location, avatar` — but the profile page exposes edit UI for **only 2** (bio and expected wage). A worker cannot change profession, experience, skills, languages or location from the UI at all.
+
+**Fix:** add edit modals/sections for the remaining fields — API needs zero changes (~1 day).
+
+### 5.4 🏗️ Contractor profile page — doesn't exist
+
+`/api/contractor/profile` route exists, but the contractor portal has **no profile/settings page** (only dashboard, jobs, applicants, payments, reviews, workers, notifications). Contractors cannot edit company details, GST info, contact info, or avatar.
+
+### 5.5 📈 Career page — static content
+
+The career roadmap is a hardcoded array (`app/worker/career/page.tsx`): `current: true` is fixed on the **Mason** path for every worker regardless of their actual profession, and wages/demand figures are static text. `enrollCourse` is real (persists to `enrolled_courses`), but the roadmap should be generated from the worker's profession + `estimateWage` + real job-demand data.
+
+### 5.6 Remaining gaps
+
 1. **Avatar/photo upload** — avatars are generated dicebear URLs. InsForge Storage bucket + signed uploads + profile UI needed (~half day).
 2. **Push notifications** — in-app realtime works, but no PWA push/SMS/Android channel. Real workers won't keep the web app open; this is the #1 engagement gap.
 3. **API rate limiting** — only OTP endpoints are rate-limited; other routes are open to logged-in abuse patterns.
@@ -105,6 +150,8 @@ ShramSetu is a two-sided marketplace (workers ↔ contractors) with an admin gov
 8. **Backups/DR** — InsForge-managed; restore drill not yet performed.
 9. **Custom domain** — currently `*.insforge.site`.
 10. **Legal/compliance** — privacy policy, ToS, DPDP Act registration, grievance officer — user's responsibility, currently absent.
+
+> Note: the "Finishing" badge seen on job cards is a legitimate job **category** (like Construction), not leftover prototype text.
 
 ---
 
@@ -120,23 +167,30 @@ ShramSetu is a two-sided marketplace (workers ↔ contractors) with an admin gov
 7. Google OAuth keys
 
 ### P1 — Before onboarding real users (2–4 weeks)
-8. Avatar upload (bucket + signed URLs + profile UI)
-9. PWA push notifications (+ optionally Android wrapper)
-10. Contractor soft-metrics derived from real data (see §3)
-11. Onboarding/empty-state polish + Hindi UI toggle
-12. Backup & restore drill; dependency + security audit (npm audit, pen-test)
+8. **Onboarding wizard** (§5.2) — new users currently land on an empty dashboard
+9. **Location system** (§5.1) — GPS detect + signup city field + profile edit + real-coords matching
+10. **Worker profile edit UI** (§5.3) — expose the 10 API-editable fields hidden behind 2
+11. **Contractor profile page** (§5.4) — company/GST/contact editing
+12. **Career roadmap personalization** (§5.5) — generate from worker's profession + real demand
+13. Avatar upload (bucket + signed URLs + profile UI)
+14. PWA push notifications (+ optionally Android wrapper)
+15. Contractor soft-metrics derived from real data (see §3)
+16. Hindi UI toggle + empty-state polish
+17. Backup & restore drill; dependency + security audit (npm audit, pen-test)
 
 ### P2 — Scale (1–2 months)
-13. Replace mega-bootstrap with per-page queries + pagination
-14. SQL materialized views for admin analytics
-15. Realtime job-feed channels sharded by city
-16. Caching/CDN layer; read replicas if load demands
-17. Native Android app if PWA proves demand
+18. Replace mega-bootstrap with per-page queries + pagination
+19. SQL materialized views for admin analytics
+20. Realtime job-feed channels sharded by city
+21. Caching/CDN layer; read replicas if load demands
+22. Native Android app if PWA proves demand
 
 ---
 
 ## 7. Bottom Line
 
-The **architecture is production-grade today**: real database, real auth, server-authoritative trust, atomic money-state machine, RBAC-defended APIs, realtime, cron, monitoring-ready deployment, and a 35-assertion E2E suite that passes against production.
+**Backend architecture is production-grade today**: real database, real auth, server-authoritative trust, atomic money-state machine, RBAC-defended APIs, realtime, cron, and a 35-assertion E2E suite that passes against production.
 
-What separates current state from *operating* in production is not code rework — it is: **3 paid accounts** (SMS, Razorpay, KYC vendor), **~1 week of integration**, **monitoring**, and **legal/compliance**. Everything else in the roadmap is enhancement, not correction.
+**Frontend has a product-completeness gap**, not an engineering gap: the backend APIs already support onboarding, location, and full profile editing — the UI simply doesn't expose them yet (§5.1–§5.5, roughly 4–5 days of focused UI work). These should land **before** showing the platform to real workers, because a first-time user today lands on an empty, Lucknow-defaulted dashboard with no way to set their profession.
+
+What separates current state from *operating* in production is therefore: **the §5 UI flows** (~1 week), **3 paid accounts** (SMS, Razorpay, KYC vendor), **monitoring**, and **legal/compliance**.
