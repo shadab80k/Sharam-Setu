@@ -11,7 +11,7 @@ import { useState } from "react";
 import { formatDate } from "@/lib/utils";
 
 export default function ContractorJobsPage() {
-  const userId = "usr_c_1";
+  const userId = useStore((s) => s.currentUserId) || "";
   const jobs = useStore((s) => s.jobs.filter((j) => j.contractorId === userId));
   const closeJob = useStore((s) => s.closeJob);
   const apps = useStore((s) => s.applications);

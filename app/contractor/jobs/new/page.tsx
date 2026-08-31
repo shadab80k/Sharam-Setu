@@ -53,25 +53,29 @@ export default function PostJobPage() {
     setForm({ ...form, requiredSkills: form.requiredSkills.filter((x) => x !== s) });
   }
 
-  function publish() {
+  async function publish() {
     const city = CITIES.find((c) => c.id === form.location) || CITIES[0];
-    const newJob = createJob({
-      contractorId: "usr_c_1",
-      title: form.title,
-      category: form.category,
-      description: form.description,
-      location: city.name,
-      latitude: city.latitude,
-      longitude: city.longitude,
-      wagePerDay: form.wagePerDay,
-      startDate: new Date(form.startDate).toISOString(),
-      endDate: new Date(form.endDate).toISOString(),
-      workersNeeded: form.workersNeeded,
-      requiredSkills: form.requiredSkills,
-      paymentFrequency: form.paymentFrequency,
-      safetyNotes: form.safetyNotes,
-    });
-    router.push(`/contractor/jobs/${newJob.id}`);
+    try {
+      const newJob = await createJob({
+        contractorId: "",
+        title: form.title,
+        category: form.category,
+        description: form.description,
+        location: city.id,
+        latitude: city.latitude,
+        longitude: city.longitude,
+        wagePerDay: form.wagePerDay,
+        startDate: new Date(form.startDate).toISOString(),
+        endDate: new Date(form.endDate).toISOString(),
+        workersNeeded: form.workersNeeded,
+        requiredSkills: form.requiredSkills,
+        paymentFrequency: form.paymentFrequency,
+        safetyNotes: form.safetyNotes,
+      });
+      router.push(`/contractor/jobs/${newJob.id}`);
+    } catch {
+      // toast already surfaced by the store
+    }
   }
 
   return (

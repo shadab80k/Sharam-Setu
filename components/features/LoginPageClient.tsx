@@ -2,19 +2,24 @@
 
 import { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Hammer, Shield, Wallet, Sparkles, Phone, ChevronRight, CheckCircle2 } from "lucide-react";
+import { Hammer, Shield, Wallet, Sparkles, Phone, ChevronRight, CheckCircle2, UserPlus, Mail } from "lucide-react";
 import { ToastViewport } from "@/components/ui/Toast";
 
-type Mode = "phone" | "otp" | "email";
+type Mode = "phone" | "otp" | "email" | "signup";
+
+const DEMO_ACCOUNTS = [
+  { role: "Worker", email: "worker@shramsetu.local" },
+  { role: "Contractor", email: "contractor@shramsetu.local" },
+  { role: "Admin", email: "admin@shramsetu.local" },
+];
 
 export default function LoginPageClient() {
-  const router = useRouter();
-  const login = useStore((s) => s.login);
   const loginByEmail = useStore((s) => s.loginByEmail);
-  const switchUser = useStore((s) => s.switchUser);
+  const sendOtp = useStore((s) => s.sendOtp);
+  const verifyOtp = useStore((s) => s.verifyOtp);
+  const signup = useStore((s) => s.signup);
   const pushToast = useStore((s) => s.pushToast);
 
   const [mounted, setMounted] = useState(false);
@@ -22,21 +27,22 @@ export default function LoginPageClient() {
   const [phone, setPhone] = useState("9876543210");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [role, setRole] = useState<"worker" | "contractor">("worker");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [devOtp, setDevOtp] = useState<string | null>(null);
+  const [resendTimer, setResendTimer] = useState(0);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  function handleSendOtp() {
-    if (phone.length < 10) {
-      pushToast("error", "Please enter a valid phone number");
-      return;
-    }
-    setMode("otp");
-    pushToast("info", "OTP sent. Use 123456 to verify (demo).");
-  }
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const t = setTimeout(() => setResendTimer((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendTimer]);
 
   function handleOtpChange(i: number, v: string) {
     if (v.length > 1) return;
@@ -44,50 +50,112 @@ export default function LoginPageClient() {
     next[i] = v;
     setOtp(next);
     if (v && i < 5) {
-      const next = document.getElementById(`otp-${i + 1}`);
-      next?.focus();
+      document.getElementById(`otp-${i + 1}`)?.focus();
     }
   }
 
-  function handleVerifyOtp() {
+  async function handleSendOtp() {
+    if (phone.length !== 10 || !/^[6-9]/.test(phone)) {
+      pushToast("error", "Enter a valid 10-digit Indian mobile number");
+      return;
+    }
+    setLoading(true);
+    try {
+      const devCode = await sendOtp(phone);
+      setDevOtp(devCode);
+      setMode("otp");
+      setResendTimer(60);
+      if (devCode) {
+        pushToast("info", `OTP sent. Dev mode code: ${devCode}`);
+      } else {
+        pushToast("success", "OTP sent to your phone");
+      }
+    } catch (e: any) {
+      pushToast("error", e.message ?? "Could not send OTP");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyOtp() {
     const code = otp.join("");
-    if (code !== "123456") {
-      pushToast("error", "That code doesn't look right. Try 123456.");
+    if (code.length !== 6) {
+      pushToast("error", "Enter the 6-digit code");
       return;
     }
     setLoading(true);
-    login("usr_w_1");
-    pushToast("success", "Welcome back, Ramesh!");
-    window.location.href = "/worker/dashboard";
+    try {
+      const user = await verifyOtp(phone, code);
+      if (!user) throw new Error("Login failed");
+      pushToast("success", `Welcome back, ${user.name}!`);
+      window.location.href = `/${user.role}/dashboard`;
+    } catch (e: any) {
+      if (e.signupRequired) {
+        setMode("signup");
+        pushToast("info", "Number not registered — create your account");
+        return;
+      }
+      pushToast("error", e.message ?? "Verification failed");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function handleEmailLogin() {
-    if (!email) {
-      pushToast("error", "Enter an email address");
-      return;
-    }
-    const user = loginByEmail(email);
-    if (!user) {
-      pushToast("error", "No account found for that email");
+  async function handleEmailLogin() {
+    if (!email || !password) {
+      pushToast("error", "Enter email and password");
       return;
     }
     setLoading(true);
-    pushToast("success", `Welcome back, ${user.name}!`);
-    window.location.href = `/${user.role}/dashboard`;
+    try {
+      const user = await loginByEmail(email, password);
+      if (!user) throw new Error("Login failed");
+      pushToast("success", `Welcome back, ${user.name}!`);
+      window.location.href = `/${user.role}/dashboard`;
+    } catch (e: any) {
+      pushToast("error", e.message ?? "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSignup() {
+    if (!name || !email || password.length < 6) {
+      pushToast("error", "Fill all fields (password min 6 characters)");
+      return;
+    }
+    setLoading(true);
+    try {
+      const user = await signup({ name, email, password, role, phone: phone || undefined });
+      if (!user) throw new Error("Signup failed");
+      pushToast("success", `Account created. Welcome, ${user.name}!`);
+      window.location.href = `/${user.role}/dashboard`;
+    } catch (e: any) {
+      pushToast("error", e.message ?? "Signup failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDemoAccess(demoEmail: string) {
+    setLoading(true);
+    try {
+      const user = await loginByEmail(demoEmail, "demo1234");
+      if (!user) throw new Error("Demo login failed");
+      pushToast("success", `Entering ${user.role} demo…`);
+      window.location.href = `/${user.role}/dashboard`;
+    } catch (e: any) {
+      pushToast("error", e.message ?? "Demo login failed");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function handleGoogle() {
-    setLoading(true);
-    login("usr_w_1");
-    pushToast("success", "Signed in with Google");
-    window.location.href = "/worker/dashboard";
+    window.location.href = "/api/auth/google";
   }
 
-  function handleDemoAccess(role: "worker" | "contractor" | "admin") {
-    switchUser(role);
-    pushToast("success", `Entering ${role} demo…`);
-    window.location.href = `/${role}/dashboard`;
-  }
+  if (!mounted) return null;
 
   return (
     <main className="min-h-screen flex flex-col lg:flex-row" suppressHydrationWarning>
@@ -112,7 +180,7 @@ export default function LoginPageClient() {
         <div className="relative space-y-6">
           <h1 className="text-4xl xl:text-5xl font-bold leading-tight">
             The digital identity for<br />
-            <span className="text-orange-400">India's informal workforce</span>
+            <span className="text-orange-400">India&apos;s informal workforce</span>
           </h1>
           <p className="text-lg text-gray-200 max-w-md">
             Verify your work, find better jobs, get fair wages, and build a reputation that travels with you.
@@ -134,12 +202,12 @@ export default function LoginPageClient() {
         </div>
 
         <div className="relative text-xs text-gray-300">
-          © ShramSetu AI · Prototype mode · All services are simulated
+          © ShramSetu AI · Secure platform · Server-verified trust scores
         </div>
       </section>
 
       {/* Right login panel */}
-      <section className="flex-1 flex flex-col p-6 sm:p-10 bg-cream-50" aria-label="Sign In">
+      <section className="flex-1 flex flex-col p-6 sm:p-10 bg-cream-50 overflow-y-auto" aria-label="Sign In">
         <div className="lg:hidden flex items-center gap-2.5 mb-8">
           <div className="h-10 w-10 rounded-xl bg-orange-600 text-white flex items-center justify-center">
             <Hammer className="h-5 w-5" strokeWidth={2.5} />
@@ -150,7 +218,7 @@ export default function LoginPageClient() {
           </div>
         </div>
 
-        <div className="m-auto w-full max-w-md">
+        <div className="m-auto w-full max-w-md py-8">
           {mode === "phone" && (
             <div className="space-y-6 animate-fade-in">
               <div>
@@ -166,10 +234,10 @@ export default function LoginPageClient() {
                   type="tel"
                   placeholder="98765 43210"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                   iconLeft={<Phone className="h-4 w-4" />}
                 />
-                <Button fullWidth size="lg" onClick={handleSendOtp} iconRight={<ChevronRight className="h-4 w-4" />}>
+                <Button fullWidth size="lg" onClick={handleSendOtp} loading={loading} iconRight={<ChevronRight className="h-4 w-4" />}>
                   Send OTP
                 </Button>
               </div>
@@ -180,29 +248,39 @@ export default function LoginPageClient() {
                 <div className="flex-1 h-px bg-gray-300" />
               </div>
 
-              <Button fullWidth size="lg" variant="secondary" onClick={handleGoogle}>
-                <GoogleIcon className="h-4 w-4 mr-2" />
-                Continue with Google
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button size="lg" variant="secondary" onClick={handleGoogle}>
+                  <GoogleIcon className="h-4 w-4 mr-2" />
+                  Google
+                </Button>
+                <Button size="lg" variant="secondary" onClick={() => setMode("email")}>
+                  <Mail className="h-4 w-4 mr-2" />
+                  Email Login
+                </Button>
+              </div>
+
+              <button
+                onClick={() => { setMode("signup"); setEmail(""); }}
+                className="w-full flex items-center justify-center gap-1.5 text-sm font-semibold text-orange-700 hover:text-orange-800"
+              >
+                <UserPlus className="h-4 w-4" />
+                New here? Create an account
+              </button>
 
               <div className="rounded-xl border border-gray-200 bg-white p-4">
                 <div className="flex items-center gap-2 mb-2.5">
                   <Sparkles className="h-4 w-4 text-purple-600" />
-                  <div className="text-sm font-semibold text-navy-900">Demo Access</div>
+                  <div className="text-sm font-semibold text-navy-900">Demo Accounts</div>
                 </div>
                 <p className="text-xs text-gray-700 mb-3">
-                  One-click entry for evaluators. No real verification required.
+                  Seeded evaluator accounts with realistic data (password: demo1234).
                 </p>
                 <div className="grid grid-cols-3 gap-2">
-                  <Button variant="secondary" size="sm" onClick={() => handleDemoAccess("worker")}>
-                    Worker
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => handleDemoAccess("contractor")}>
-                    Contractor
-                  </Button>
-                  <Button variant="ai" size="sm" onClick={() => handleDemoAccess("admin")}>
-                    Admin
-                  </Button>
+                  {DEMO_ACCOUNTS.map((d) => (
+                    <Button key={d.role} variant="secondary" size="sm" onClick={() => handleDemoAccess(d.email)} disabled={loading}>
+                      {d.role}
+                    </Button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -226,7 +304,7 @@ export default function LoginPageClient() {
                     inputMode="numeric"
                     maxLength={1}
                     value={d}
-                    onChange={(e) => handleOtpChange(i, e.target.value)}
+                    onChange={(e) => handleOtpChange(i, e.target.value.replace(/\D/g, ""))}
                     className="h-12 w-12 text-center text-lg font-bold rounded-lg border border-gray-300 bg-white text-navy-900 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
                   />
                 ))}
@@ -236,23 +314,105 @@ export default function LoginPageClient() {
                 <button onClick={() => setMode("phone")} className="text-orange-700 font-semibold underline-offset-2 hover:underline">
                   Change number
                 </button>
-                <button className="text-gray-700 font-medium">Resend in 28s</button>
+                <button
+                  className={`font-medium ${resendTimer > 0 ? "text-gray-500" : "text-orange-700 font-semibold underline-offset-2 hover:underline"}`}
+                  disabled={resendTimer > 0 || loading}
+                  onClick={handleSendOtp}
+                >
+                  {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend code"}
+                </button>
               </div>
 
               <Button fullWidth size="lg" onClick={handleVerifyOtp} loading={loading}>
                 Verify and continue
               </Button>
 
-              <div className="rounded-lg bg-blue-100 border border-blue-200 p-3 text-xs text-blue-800 flex items-start gap-2">
-                <CheckCircle2 className="h-4 w-4 mt-0.5 flex-shrink-0 text-blue-700" />
-                <span>Demo OTP is <span className="font-bold">123456</span>. In production, this would be sent via SMS.</span>
+              {devOtp && (
+                <div className="rounded-lg bg-blue-100 border border-blue-200 p-3 text-xs text-blue-800 flex items-start gap-2">
+                  <CheckCircle2 className="h-4 w-4 mt-0.5 flex-shrink-0 text-blue-700" />
+                  <span>
+                    SMS provider not configured — your code is{" "}
+                    <button
+                      className="font-bold underline"
+                      onClick={() => { setOtp(devOtp.split("")); }}
+                    >
+                      {devOtp}
+                    </button>{" "}
+                    (tap to fill). Add MSG91/Twilio keys to switch to real SMS.
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {mode === "email" && (
+            <div className="space-y-6 animate-fade-in">
+              <div>
+                <h2 className="text-2xl font-bold text-navy-900">Sign in with email</h2>
+                <p className="text-sm text-gray-800 mt-1.5">Use your account email and password.</p>
               </div>
+              <div className="space-y-3">
+                <Input label="Email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <Input label="Password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+                <Button fullWidth size="lg" onClick={handleEmailLogin} loading={loading}>
+                  Sign in
+                </Button>
+              </div>
+              <button onClick={() => setMode("phone")} className="text-sm font-semibold text-orange-700 hover:text-orange-800">
+                ← Back to phone login
+              </button>
+            </div>
+          )}
+
+          {mode === "signup" && (
+            <div className="space-y-5 animate-fade-in">
+              <div>
+                <h2 className="text-2xl font-bold text-navy-900">Create your account</h2>
+                <p className="text-sm text-gray-800 mt-1.5">Join as a worker or a contractor.</p>
+              </div>
+              <div className="space-y-3">
+                <Input label="Full name / Company name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ramesh Kumar" />
+                <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+                <Input label="Password (min 6 characters)" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+                <Input
+                  label="Mobile number (optional)"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  placeholder="98765 43210"
+                  iconLeft={<Phone className="h-4 w-4" />}
+                />
+                <div>
+                  <div className="text-xs font-semibold text-gray-700 mb-1.5">I am a</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["worker", "contractor"] as const).map((r) => (
+                      <button
+                        key={r}
+                        onClick={() => setRole(r)}
+                        className={`px-4 py-2.5 rounded-lg border text-sm font-semibold capitalize transition ${
+                          role === r
+                            ? "border-orange-600 bg-orange-100 text-orange-700"
+                            : "border-gray-300 bg-white text-gray-700 hover:bg-cream-100"
+                        }`}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <Button fullWidth size="lg" onClick={handleSignup} loading={loading}>
+                  Create account
+                </Button>
+              </div>
+              <button onClick={() => setMode("phone")} className="text-sm font-semibold text-orange-700 hover:text-orange-800">
+                ← Back to login
+              </button>
             </div>
           )}
         </div>
 
         <div className="mt-8 text-center text-xs text-gray-700 font-medium">
-          Prototype mode — verification and external services are simulated.
+          Secured by InsForge · Sessions, RLS-protected data & server-side trust verification.
         </div>
       </section>
     </main>

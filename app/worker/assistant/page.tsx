@@ -8,7 +8,6 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
 import { Sparkles, Send, Loader2, MessageSquare, BookOpen, Wallet, Shield, Briefcase, GraduationCap, AlertTriangle, ChevronRight, User2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
-import { generateResponse } from "@/lib/services/aiAssistant";
 import { randomId, timeAgo, formatINR } from "@/lib/utils";
 import type { ChatMessage } from "@/lib/types";
 import Link from "next/link";
@@ -18,7 +17,9 @@ export default function WorkerAssistantPage() {
   const user = useStore((s) => s.users.find((u) => u.id === currentUserId));
   const addChatMessage = useStore((s) => s.addChatMessage);
   const clearChat = useStore((s) => s.clearChat);
-  const chatHistory = useStore((s) => s.chatHistory[currentUserId] ?? []);
+  const sendAssistantMessage = useStore((s) => s.sendAssistantMessage);
+  const allChat = useStore((s) => s.chatHistory) ?? [];
+  const chatHistory = allChat;
   const profile = useStore((s) => s.workerProfiles.find((p) => p.userId === currentUserId));
   const jobs = useStore((s) => s.jobs.filter((j) => j.status === "active"));
   const applications = useStore((s) => s.applications);
@@ -38,8 +39,9 @@ export default function WorkerAssistantPage() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [chatHistory, thinking]);
 
-  function send(text: string) {
+  async function send(text: string) {
     if (!text.trim() || !profile) return;
+    // optimistic user bubble; server reply appends via the store
     const userMsg: ChatMessage = {
       id: randomId("msg"),
       role: "user",
@@ -49,32 +51,11 @@ export default function WorkerAssistantPage() {
     addChatMessage(currentUserId, userMsg);
     setInput("");
     setThinking(true);
-    setTimeout(() => {
-      const response = generateResponse(text, {
-        worker: profile, jobs, applications, payments, expenses, savingsGoals, unreadNotifications,
-      });
-      const aiMsg: ChatMessage = {
-        id: randomId("msg"),
-        role: "assistant",
-        content: response.message,
-        createdAt: new Date().toISOString(),
-        intent: response.intent,
-        cta: response.cta,
-      };
-      addChatMessage(currentUserId, aiMsg);
-      if (response.suggestions) {
-        response.suggestions.forEach((s) => {
-          const sugMsg: ChatMessage = {
-            id: randomId("msg"),
-            role: "assistant",
-            content: `💡 ${s}`,
-            createdAt: new Date().toISOString(),
-          };
-          addChatMessage(currentUserId, sugMsg);
-        });
-      }
+    try {
+      await sendAssistantMessage(text);
+    } finally {
       setThinking(false);
-    }, 700 + Math.random() * 500);
+    }
   }
 
   const intentIcons: Record<string, React.ReactNode> = {
@@ -126,7 +107,7 @@ export default function WorkerAssistantPage() {
               </div>
             )}
 
-            {chatHistory.map((msg) => (
+            {chatHistory.map((msg: ChatMessage) => (
               <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div className={`flex gap-2 max-w-[80%] ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
                   {msg.role === "assistant" ? (

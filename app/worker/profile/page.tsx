@@ -29,6 +29,8 @@ export default function WorkerProfilePage() {
   const verifications = useStore((s) => s.verifications.filter((v) => v.userId === currentUserId));
   const workHistory = useStore((s) => s.workHistory.filter((w) => w.workerId === currentUserId));
   const reviews = useStore((s) => s.reviews.filter((r) => r.revieweeId === currentUserId));
+  const contractors = useStore((s) => s.contractorProfiles);
+  const pushToast = useStore((s) => s.pushToast);
 
   const [editingAbout, setEditingAbout] = useState(false);
   const [editingWage, setEditingWage] = useState(false);
@@ -40,9 +42,9 @@ export default function WorkerProfilePage() {
   const [certModalOpen, setCertModalOpen] = useState(false);
   const [workForm, setWorkForm] = useState({
     role: profile?.profession ?? "Mason",
-    contractorName: "Raj BuildWorks",
-    startDate: "2026-04-01",
-    endDate: "2026-06-01",
+    contractorId: "",
+    startDate: new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10),
+    endDate: new Date().toISOString().slice(0, 10),
     rating: 5,
   });
   const [certName, setCertName] = useState("");
@@ -62,14 +64,15 @@ export default function WorkerProfilePage() {
   }
 
   function handleSaveWork() {
+    if (!workForm.contractorId) {
+      pushToast("error", "Select the contractor you worked with");
+      return;
+    }
     addWorkHistory({
-      workerId: currentUserId,
-      contractorId: "usr_c_1",
-      jobId: "custom_job",
+      contractorId: workForm.contractorId,
       role: workForm.role,
-      startDate: workForm.startDate,
-      endDate: workForm.endDate,
-      verified: true,
+      startDate: new Date(workForm.startDate).toISOString(),
+      endDate: workForm.endDate ? new Date(workForm.endDate).toISOString() : undefined,
       rating: workForm.rating,
     });
     setWorkModalOpen(false);
@@ -373,11 +376,14 @@ export default function WorkerProfilePage() {
             onChange={(e) => setWorkForm({ ...workForm, role: e.target.value })}
             placeholder="e.g. Mason, Tile Fitter"
           />
-          <Input
-            label="Contractor / Site Name"
-            value={workForm.contractorName}
-            onChange={(e) => setWorkForm({ ...workForm, contractorName: e.target.value })}
-            placeholder="e.g. Raj BuildWorks"
+          <Select
+            label="Contractor"
+            value={workForm.contractorId}
+            onChange={(e) => setWorkForm({ ...workForm, contractorId: e.target.value })}
+            options={[
+              { value: "", label: "Select contractor…" },
+              ...contractors.map((c) => ({ value: c.userId, label: c.companyName })),
+            ]}
           />
           <div className="grid grid-cols-2 gap-3">
             <Input

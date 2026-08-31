@@ -12,7 +12,8 @@ import { calculateMatchScore } from "@/lib/services/jobMatching";
 import { CITIES } from "@/lib/utils/cities";
 
 export default function ApplicantsPage() {
-  const myJobs = useStore((s) => s.jobs.filter((j) => j.contractorId === "usr_c_1"));
+  const userId = useStore((s) => s.currentUserId) || "";
+  const myJobs = useStore((s) => s.jobs.filter((j) => j.contractorId === userId));
   const allApps = useStore((s) => s.applications);
   const workers = useStore((s) => s.workerProfiles);
   const users = useStore((s) => s.users);

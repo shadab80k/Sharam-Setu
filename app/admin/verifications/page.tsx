@@ -64,7 +64,7 @@ export default function VerificationsPage() {
           filtered.map((v) => {
             const user = users.find((u) => u.id === v.userId);
             if (!user) return null;
-            const confidence = v.status === "verified" ? v.score : Math.floor(Math.random() * 30 + 70);
+            const confidence = v.status === "verified" ? v.score : 0;
             return (
               <Card key={v.id} className="p-4">
                 <div className="flex items-start gap-3 flex-wrap">

@@ -50,9 +50,17 @@ export default function WorkerDashboard() {
   }, [jobs, profile, city]);
 
   const incomeChart = useMemo(() => {
-    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    return days.map((d, i) => ({ day: d, income: 800 + i * 100 + (i % 2 === 0 ? 200 : 0) }));
-  }, []);
+    // Real daily earnings — paid payments bucketed over the last 7 days
+    return Array.from({ length: 7 }, (_, i) => {
+      const day = new Date(); day.setHours(0, 0, 0, 0); day.setDate(day.getDate() - (6 - i));
+      const next = new Date(day); next.setDate(next.getDate() + 1);
+      const income = payments
+        .filter((p) => p.status === "paid" && p.paidDate)
+        .filter((p) => { const t = new Date(p.paidDate!); return t >= day && t < next; })
+        .reduce((s, p) => s + p.amount, 0);
+      return { day: day.toLocaleDateString("en-IN", { weekday: "short" }), income };
+    });
+  }, [payments]);
 
   const greeting = useMemo(() => {
     const h = new Date().getHours();
@@ -158,8 +166,7 @@ export default function WorkerDashboard() {
           value={formatINR(todaysIncome)}
           icon={<Wallet className="h-5 w-5" />}
           tone="green"
-          trend={{ value: 12, positive: true }}
-          hint="From 1 paid job"
+          hint={`${payments.filter((p) => p.status === "paid").length} paid payment${payments.filter((p) => p.status === "paid").length === 1 ? "" : "s"}`}
         />
         <MetricCard
           label="Pending Payments"
@@ -173,8 +180,7 @@ export default function WorkerDashboard() {
           value={formatINRShort(Math.max(0, savings))}
           icon={<PiggyBank className="h-5 w-5" />}
           tone="blue"
-          trend={{ value: 8, positive: true }}
-          hint="This month"
+          hint="Income − expenses"
         />
         <MetricCard
           label="Job Matches"

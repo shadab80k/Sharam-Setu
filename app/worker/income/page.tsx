@@ -29,14 +29,14 @@ export default function WorkerIncomePage() {
   const payments = useStore((s) => s.payments.filter((p) => p.workerId === currentUserId));
   const jobs = useStore((s) => s.jobs);
   const contractors = useStore((s) => s.users);
+  const applications = useStore((s) => s.applications);
   const markReceived = useStore((s) => s.markPaymentReceived);
   const addIncome = useStore((s) => s.addIncome);
   const pushToast = useStore((s) => s.pushToast);
   const [tab, setTab] = useState<"daily" | "weekly" | "monthly">("weekly");
   const [openModal, setOpenModal] = useState(false);
   const [incomeForm, setIncomeForm] = useState({
-    title: "",
-    contractorName: "Raj BuildWorks",
+    jobId: "",
     amount: "",
     date: new Date().toISOString().slice(0, 10),
     status: "paid" as "paid" | "pending",
@@ -49,11 +49,31 @@ export default function WorkerIncomePage() {
   const overdue = payments.filter((p) => p.status === "overdue");
   const overdueAmount = overdue.reduce((s, p) => s + p.amount, 0);
 
+  // Real income chart data — sum of paid payments per day/week/month bucket
+  const paidPayments = payments.filter((p) => p.status === "paid" && p.paidDate);
+  const sumBetween = (from: Date, to: Date) =>
+    paidPayments
+      .filter((p) => { const t = new Date(p.paidDate!); return t >= from && t < to; })
+      .reduce((s, p) => s + p.amount, 0);
+
   const chartData = tab === "daily"
-    ? [{ d: "Mon", v: 900 }, { d: "Tue", v: 1200 }, { d: "Wed", v: 800 }, { d: "Thu", v: 1100 }, { d: "Fri", v: 1300 }, { d: "Sat", v: 1000 }, { d: "Sun", v: 0 }]
+    ? Array.from({ length: 7 }, (_, i) => {
+        const day = new Date(); day.setHours(0, 0, 0, 0); day.setDate(day.getDate() - (6 - i));
+        const next = new Date(day); next.setDate(next.getDate() + 1);
+        return { d: day.toLocaleDateString("en-IN", { weekday: "short" }), v: sumBetween(day, next) };
+      })
     : tab === "weekly"
-    ? [{ d: "W1", v: 5800 }, { d: "W2", v: 6300 }, { d: "W3", v: 7100 }, { d: "W4", v: 6800 }]
-    : [{ d: "Jan", v: 22000 }, { d: "Feb", v: 24500 }, { d: "Mar", v: 26800 }, { d: "Apr", v: 28000 }];
+    ? Array.from({ length: 4 }, (_, i) => {
+        const start = new Date(); start.setHours(0, 0, 0, 0);
+        start.setDate(start.getDate() - start.getDay() - (3 - i) * 7); // weeks starting Sunday
+        const end = new Date(start); end.setDate(end.getDate() + 7);
+        return { d: `W${i + 1}`, v: sumBetween(start, end) };
+      })
+    : Array.from({ length: 6 }, (_, i) => {
+        const m = new Date(); m.setDate(1); m.setHours(0, 0, 0, 0); m.setMonth(m.getMonth() - (5 - i));
+        const end = new Date(m); end.setMonth(end.getMonth() + 1);
+        return { d: m.toLocaleString("en-IN", { month: "short" }), v: sumBetween(m, end) };
+      });
 
   const statusData = [
     { name: "Paid", value: payments.filter((p) => p.status === "paid").length, color: "#178B4A" },
@@ -61,27 +81,35 @@ export default function WorkerIncomePage() {
     { name: "Overdue", value: overdue.length, color: "#D92D20" },
   ];
 
+  // Jobs the worker was actually hired on — the only ones income can be recorded against
+  const hiredJobs = applications
+    .filter((a) => a.workerId === currentUserId && ["selected", "completed"].includes(a.status))
+    .map((a) => jobs.find((j) => j.id === a.jobId))
+    .filter((j): j is NonNullable<typeof j> => !!j);
+
   const handleAddIncome = () => {
+    if (!incomeForm.jobId) {
+      pushToast("error", "Select the job this income is from");
+      return;
+    }
     if (!incomeForm.amount || Number(incomeForm.amount) <= 0) {
       pushToast("error", "Please enter a valid amount");
       return;
     }
-    const contractor = contractors.find((c) => c.role === "contractor") || contractors[0];
     addIncome({
       workerId: currentUserId,
-      contractorId: contractor?.id || "usr_c_1",
-      jobId: "custom_job",
+      contractorId: "",
+      jobId: incomeForm.jobId,
       amount: Number(incomeForm.amount),
       dueDate: new Date(incomeForm.date).toISOString(),
       paidDate: incomeForm.status === "paid" ? new Date(incomeForm.date).toISOString() : undefined,
       status: incomeForm.status,
       method: incomeForm.method,
-      notes: incomeForm.title ? `${incomeForm.title} - ${incomeForm.notes}` : incomeForm.notes,
+      notes: incomeForm.notes,
     });
     setOpenModal(false);
     setIncomeForm({
-      title: "",
-      contractorName: "Raj BuildWorks",
+      jobId: "",
       amount: "",
       date: new Date().toISOString().slice(0, 10),
       status: "paid",
@@ -103,7 +131,7 @@ export default function WorkerIncomePage() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard label="Total Income" value={formatINRShort(totalIncome)} icon={<Wallet className="h-5 w-5" />} tone="green" trend={{ value: 18, positive: true }} hint="All time" />
+        <MetricCard label="Total Income" value={formatINRShort(totalIncome)} icon={<Wallet className="h-5 w-5" />} tone="green" hint="All time" />
         <MetricCard label="Paid" value={formatINRShort(totalIncome)} icon={<CheckCircle2 className="h-5 w-5" />} tone="green" hint={`${payments.filter((p) => p.status === "paid").length} payments`} />
         <MetricCard label="Pending" value={formatINRShort(pending - overdueAmount)} icon={<Clock className="h-5 w-5" />} tone="amber" hint={`${payments.filter((p) => p.status !== "paid" && p.status !== "overdue").length} payments`} />
         <MetricCard label="Overdue" value={formatINRShort(overdueAmount)} icon={<AlertCircle className="h-5 w-5" />} tone="red" hint={`${overdue.length} need follow-up`} />
@@ -203,12 +231,19 @@ export default function WorkerIncomePage() {
 
       <Modal open={openModal} onClose={() => setOpenModal(false)} title="Record New Income">
         <div className="space-y-3">
-          <Input
-            label="Job / Work Name"
-            placeholder="e.g. Brickwork at Gomti Nagar site"
-            value={incomeForm.title}
-            onChange={(e) => setIncomeForm({ ...incomeForm, title: e.target.value })}
-          />
+          {hiredJobs.length === 0 ? (
+            <p className="text-sm text-gray-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              You can only record income for jobs you were hired on. Once a contractor hires you from your
+              applications, the job will appear here.
+            </p>
+          ) : (
+            <Select
+              label="Job"
+              value={incomeForm.jobId}
+              onChange={(e) => setIncomeForm({ ...incomeForm, jobId: e.target.value })}
+              options={hiredJobs.map((j) => ({ value: j.id, label: j.title }))}
+            />
+          )}
           <Input
             label="Amount (₹)"
             type="number"

@@ -18,7 +18,7 @@ const TYPE_META: Record<string, { icon: React.ReactNode; color: string; label: s
 };
 
 export default function ContractorNotificationsPage() {
-  const userId = "usr_c_1";
+  const userId = useStore((s) => s.currentUserId) || "";
   const notifications = useStore((s) => s.notifications.filter((n) => n.userId === userId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
   const markRead = useStore((s) => s.markNotificationRead);
   const markAllRead = useStore((s) => s.markAllNotificationsRead);

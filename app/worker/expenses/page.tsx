@@ -62,14 +62,24 @@ export default function WorkerExpensesPage() {
   }, [expenses]);
 
   const monthlyData = useMemo(() => {
-    const months = ["Jan", "Feb", "Mar", "Apr", "May"];
-    return months.map((m) => ({
-      month: m,
-      income: 18000 + Math.random() * 4000,
-      expense: 12000 + Math.random() * 3000,
-      savings: 4000 + Math.random() * 1500,
-    }));
-  }, []);
+    // Real monthly buckets from the worker's paid payments and expenses
+    return Array.from({ length: 5 }, (_, i) => {
+      const m = new Date(); m.setDate(1); m.setHours(0, 0, 0, 0); m.setMonth(m.getMonth() - (4 - i));
+      const end = new Date(m); end.setMonth(end.getMonth() + 1);
+      const income = payments
+        .filter((p) => { const t = p.paidDate ? new Date(p.paidDate) : null; return t && t >= m && t < end; })
+        .reduce((s, p) => s + p.amount, 0);
+      const expense = expenses
+        .filter((e) => { const t = new Date(e.date); return t >= m && t < end; })
+        .reduce((s, e) => s + e.amount, 0);
+      return {
+        month: m.toLocaleString("en-IN", { month: "short" }),
+        income,
+        expense,
+        savings: Math.max(0, income - expense),
+      };
+    });
+  }, [payments, expenses]);
 
   function handleAdd() {
     if (!form.amount || Number(form.amount) <= 0) {
@@ -92,7 +102,6 @@ export default function WorkerExpensesPage() {
       : new Date(Date.now() + 180 * 86400000).toISOString();
 
     addGoal({
-      workerId: currentUserId,
       name: goalForm.name,
       targetAmount: Number(goalForm.targetAmount),
       currentAmount: Number(goalForm.currentAmount || 0),
@@ -129,7 +138,7 @@ export default function WorkerExpensesPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard label="Income" value={formatINRShort(totalIncome)} icon={<Wallet className="h-5 w-5" />} tone="green" />
         <MetricCard label="Expenses" value={formatINRShort(totalExp)} icon={<TrendingDown className="h-5 w-5" />} tone="red" />
-        <MetricCard label="Savings" value={formatINRShort(savings)} icon={<PiggyBank className="h-5 w-5" />} tone="blue" trend={{ value: 12, positive: true }} />
+        <MetricCard label="Savings" value={formatINRShort(savings)} icon={<PiggyBank className="h-5 w-5" />} tone="blue" hint="Income − expenses" />
         <MetricCard label="Savings rate" value={`${savingsRate}%`} icon={<Sparkles className="h-5 w-5" />} tone="purple" hint="Goal: 20%+" />
       </div>
 

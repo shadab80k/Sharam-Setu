@@ -19,8 +19,9 @@ import { WorkerProfileModal } from "@/components/features/WorkerProfileModal";
 export default function ContractorJobDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const userId = useStore((s) => s.currentUserId) || "";
   const job = useStore((s) => s.jobs.find((j) => j.id === id));
-  const profile = useStore((s) => s.contractorProfiles.find((p) => p.userId === "usr_c_1"));
+  const profile = useStore((s) => s.contractorProfiles.find((p) => p.userId === userId));
   const allApps = useStore((s) => s.applications);
   const workers = useStore((s) => s.workerProfiles);
   const users = useStore((s) => s.users);

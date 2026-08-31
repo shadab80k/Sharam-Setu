@@ -51,7 +51,6 @@ export default function WorkerReportsPage() {
       return;
     }
     submit({
-      reporterId: currentUserId,
       category: form.category,
       severity: form.severity,
       jobId: form.jobId || undefined,

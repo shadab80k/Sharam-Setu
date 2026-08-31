@@ -23,10 +23,19 @@ export default function AdminPaymentsPage() {
   const totalOverdue = payments.filter((p) => p.status === "overdue").reduce((s, p) => s + p.amount, 0);
   const disputes = payments.filter((p) => p.notes?.toLowerCase().includes("dispute") || p.status === "overdue").length;
 
-  const trend = [
-    { m: "Jan", v: 180000 }, { m: "Feb", v: 220000 }, { m: "Mar", v: 260000 },
-    { m: "Apr", v: 295000 }, { m: "May", v: 340000 }, { m: "Jun", v: 410000 },
-  ];
+  // Real paid volume per month (last 6 months)
+  const trend = Array.from({ length: 6 }, (_, i) => {
+    const m = new Date(); m.setDate(1); m.setHours(0, 0, 0, 0); m.setMonth(m.getMonth() - (5 - i));
+    const end = new Date(m); end.setMonth(end.getMonth() + 1);
+    const v = payments
+      .filter((p) => {
+        if (p.status !== "paid" || !p.paidDate) return false;
+        const t = new Date(p.paidDate);
+        return t >= m && t < end;
+      })
+      .reduce((s, p) => s + p.amount, 0);
+    return { m: m.toLocaleString("en-IN", { month: "short" }), v };
+  });
 
   const filtered = useMemo(() => payments.filter((p) => {
     if (search) {
@@ -48,7 +57,7 @@ export default function AdminPaymentsPage() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard label="Total Volume" value={formatINRShort(totalPaid + totalPending)} icon={<Wallet className="h-5 w-5" />} tone="green" trend={{ value: 22, positive: true }} />
+        <MetricCard label="Total Volume" value={formatINRShort(totalPaid + totalPending)} icon={<Wallet className="h-5 w-5" />} tone="green" hint={`${payments.length} records`} />
         <MetricCard label="Paid" value={formatINRShort(totalPaid)} icon={<CheckCircle2 className="h-5 w-5" />} tone="green" />
         <MetricCard label="Pending" value={formatINRShort(totalPending)} icon={<Clock className="h-5 w-5" />} tone="amber" />
         <MetricCard label="Overdue" value={formatINRShort(totalOverdue)} icon={<AlertCircle className="h-5 w-5" />} tone="red" hint={`${disputes} disputes`} />

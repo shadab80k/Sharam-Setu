@@ -36,6 +36,8 @@ export default function WorkerTrustPage() {
   const completeAssessment = useStore((s) => s.completeAssessment);
   const addWorkHistory = useStore((s) => s.addWorkHistory);
   const addCertification = useStore((s) => s.addCertification);
+  const contractors = useStore((s) => s.contractorProfiles);
+  const pushToast = useStore((s) => s.pushToast);
 
   const [assessmentModalOpen, setAssessmentModalOpen] = useState(false);
   const [workModalOpen, setWorkModalOpen] = useState(false);
@@ -49,9 +51,9 @@ export default function WorkerTrustPage() {
   // Work Record State
   const [workForm, setWorkForm] = useState({
     role: "Mason",
-    contractorName: "Raj BuildWorks",
-    startDate: "2026-05-01",
-    endDate: "2026-06-15",
+    contractorId: "",
+    startDate: new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10),
+    endDate: new Date().toISOString().slice(0, 10),
     rating: 5,
   });
 
@@ -72,14 +74,19 @@ export default function WorkerTrustPage() {
     fraudSignals,
   });
 
-  const trendData = [
-    { month: "Jan", score: Math.max(30, result.score - 40) },
-    { month: "Feb", score: Math.max(40, result.score - 32) },
-    { month: "Mar", score: Math.max(50, result.score - 24) },
-    { month: "Apr", score: Math.max(60, result.score - 16) },
-    { month: "May", score: Math.max(70, result.score - 8) },
-    { month: "Jun", score: result.score },
-  ];
+  // Real score trend from the server-authored trust_events audit trail.
+  // Recalculation events record the score after the change in `points`
+  // ("Score updated from X to Y"); the last point is the live score.
+  const trendData = (() => {
+    const snapshots = events
+      .filter((e) => /score updated/i.test(e.reason))
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      .map((e) => ({
+        month: new Date(e.createdAt).toLocaleString("en-IN", { month: "short" }),
+        score: e.points,
+      }));
+    return [...snapshots.slice(-5), { month: "Now", score: result.score }];
+  })();
 
   const quizQuestions = [
     {
@@ -120,14 +127,15 @@ export default function WorkerTrustPage() {
   };
 
   const handleSaveWorkHistory = () => {
+    if (!workForm.contractorId) {
+      pushToast("error", "Select the contractor you worked with");
+      return;
+    }
     addWorkHistory({
-      workerId: currentUserId,
-      contractorId: "usr_c_1",
-      jobId: "custom_job",
+      contractorId: workForm.contractorId,
       role: workForm.role,
-      startDate: workForm.startDate,
-      endDate: workForm.endDate,
-      verified: true,
+      startDate: new Date(workForm.startDate).toISOString(),
+      endDate: workForm.endDate ? new Date(workForm.endDate).toISOString() : undefined,
       rating: workForm.rating,
     });
     setWorkModalOpen(false);
@@ -194,7 +202,7 @@ export default function WorkerTrustPage() {
           <Card>
             <CardHeader>
               <CardTitle>Score trend</CardTitle>
-              <CardSubtitle>Your trust score over the last 6 months</CardSubtitle>
+              <CardSubtitle>Server-recorded score history, latest first-hand data</CardSubtitle>
             </CardHeader>
             <CardBody>
               <TrustLineChart data={trendData} />
@@ -388,11 +396,14 @@ export default function WorkerTrustPage() {
             onChange={(e) => setWorkForm({ ...workForm, role: e.target.value })}
             placeholder="e.g. Mason, Tile Fitter"
           />
-          <Input
-            label="Contractor / Site Name"
-            value={workForm.contractorName}
-            onChange={(e) => setWorkForm({ ...workForm, contractorName: e.target.value })}
-            placeholder="e.g. Raj BuildWorks"
+          <Select
+            label="Contractor"
+            value={workForm.contractorId}
+            onChange={(e) => setWorkForm({ ...workForm, contractorId: e.target.value })}
+            options={[
+              { value: "", label: "Select contractor…" },
+              ...contractors.map((c) => ({ value: c.userId, label: c.companyName })),
+            ]}
           />
           <div className="grid grid-cols-2 gap-3">
             <Input

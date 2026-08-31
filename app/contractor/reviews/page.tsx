@@ -12,7 +12,8 @@ import { Modal } from "@/components/ui/Modal";
 import { formatDate } from "@/lib/utils";
 
 export default function ReviewsPage() {
-  const myJobs = useStore((s) => s.jobs.filter((j) => j.contractorId === "usr_c_1"));
+  const userId = useStore((s) => s.currentUserId) || "";
+  const myJobs = useStore((s) => s.jobs.filter((j) => j.contractorId === userId));
   const myApps = useStore((s) => s.applications.filter((a) => myJobs.some((j) => j.id === a.jobId) && a.status === "completed"));
   const users = useStore((s) => s.users);
   const reviews = useStore((s) => s.reviews);
@@ -22,7 +23,7 @@ export default function ReviewsPage() {
   const [form, setForm] = useState({ rating: 5, reliability: 5, skill: 5, safety: 5, comment: "" });
 
   const target = myApps.find((a) => a.id === open);
-  const myReviews = reviews.filter((r) => r.reviewerId === "usr_c_1");
+  const myReviews = reviews.filter((r) => r.reviewerId === userId);
 
   const ratingDist = [5, 4, 3, 2, 1].map((star) => ({
     star,
@@ -157,7 +158,7 @@ export default function ReviewsPage() {
               <Button
                 onClick={() => {
                   reviewWorker({
-                    reviewerId: "usr_c_1",
+                    reviewerId: userId,
                     revieweeId: target.workerId,
                     jobId: target.jobId,
                     rating: form.rating,

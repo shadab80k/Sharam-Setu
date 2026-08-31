@@ -1,82 +1,132 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardBody, CardHeader, CardTitle, CardSubtitle } from "@/components/ui/Card";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { Badge } from "@/components/ui/Badge";
-import { TrendingUp, Users, Briefcase, Wallet, Sparkles } from "lucide-react";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { TrendingUp, Users, Briefcase, Wallet, Sparkles, AlertCircle } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area } from "recharts";
 import { formatINR, formatINRShort } from "@/lib/utils";
+import { apiGet } from "@/lib/api/client";
 
-const incomeImprovement = [
-  { m: "Before", v: 18000 },
-  { m: "After (3mo)", v: 21200 },
-  { m: "After (6mo)", v: 24500 },
-  { m: "After (12mo)", v: 28000 },
-];
+interface Analytics {
+  totals: {
+    workers: number;
+    contractors: number;
+    activeJobs: number;
+    completedJobs: number;
+    applications: number;
+    hires: number;
+    totalWagesFlowed: number;
+    pendingWages: number;
+    overdueCount: number;
+    compliance: number;
+    pendingVerifications: number;
+    openReports: number;
+    avgExpectedWage: number;
+    avgCityBaseWage: number;
+    avgPaidAmount: number;
+  };
+  cityDistribution: { name: string; value: number }[];
+  skillDemand: { name: string; demand: number }[];
+  matchingTrend: { m: string; v: number }[];
+  trustTrend: { m: string; v: number | null }[];
+  signupGrowth: { m: string; v: number }[];
+  generatedAt: string;
+}
 
-const trustGrowth = [
-  { m: "Jan", v: 45 }, { m: "Feb", v: 52 }, { m: "Mar", v: 61 },
-  { m: "Apr", v: 70 }, { m: "May", v: 78 }, { m: "Jun", v: 87 },
-];
-
-const matching = [
-  { m: "Jan", v: 1200 }, { m: "Feb", v: 1480 }, { m: "Mar", v: 1820 },
-  { m: "Apr", v: 2100 }, { m: "May", v: 2450 }, { m: "Jun", v: 2800 },
-];
-
-const savings = [
-  { m: "Cohort 1", v: 12 }, { m: "Cohort 2", v: 22 }, { m: "Cohort 3", v: 28 },
-  { m: "Cohort 4", v: 35 }, { m: "Cohort 5", v: 42 },
-];
-
-const cities = [
-  { name: "Lucknow", value: 320, color: "#F4511E" },
-  { name: "Delhi", value: 280, color: "#2367C9" },
-  { name: "Mumbai", value: 240, color: "#7047C6" },
-  { name: "Jaipur", value: 180, color: "#178B4A" },
-  { name: "Kanpur", value: 150, color: "#C77A00" },
-  { name: "Noida", value: 130, color: "#D92D20" },
-];
-
-const skills = [
-  { name: "Masonry", demand: 92 },
-  { name: "Plumbing", demand: 85 },
-  { name: "Tiling", demand: 78 },
-  { name: "Painting", demand: 70 },
-  { name: "Wiring", demand: 65 },
-  { name: "Carpentry", demand: 60 },
-  { name: "Helper", demand: 95 },
-];
+const PIE_COLORS = ["#F4511E", "#2367C9", "#7047C6", "#178B4A", "#C77A00", "#D92D20", "#0E9388", "#6941C6"];
 
 export default function AnalyticsPage() {
+  const [data, setData] = useState<Analytics | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setError(null);
+    setData(null);
+    try {
+      setData(await apiGet<Analytics>("/api/admin/analytics"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load analytics");
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (error) {
+    return (
+      <EmptyState
+        icon={<AlertCircle className="h-8 w-8 text-orange-500" />}
+        title="Analytics unavailable"
+        description="Live platform data could not be loaded. Check your connection and retry."
+        cta={{ label: "Retry", onClick: load }}
+      />
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-52" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-xl" />
+          ))}
+        </div>
+        <div className="grid lg:grid-cols-2 gap-5">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-72 rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const t = data.totals;
+  const wageLift = t.avgCityBaseWage > 0
+    ? Math.round(((t.avgExpectedWage - t.avgCityBaseWage) / t.avgCityBaseWage) * 100)
+    : 0;
+  const wageBars = [
+    { m: "City base", v: t.avgCityBaseWage },
+    { m: "Worker expected", v: t.avgExpectedWage },
+    { m: "Settled avg", v: t.avgPaidAmount },
+  ];
+  const updated = new Date(data.generatedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+
   return (
     <div className="space-y-5">
       <div>
         <h2 className="text-2xl font-bold text-navy-900">Impact & Results</h2>
-        <p className="text-sm text-gray-700 mt-1">
-          Platform impact metrics. <Badge variant="amber" size="sm">Prototype demo figures</Badge>
+        <p className="text-sm text-gray-700 mt-1 flex items-center gap-2">
+          Live platform metrics, aggregated from the production database.
+          <Badge variant="green" size="sm">Live data · {updated}</Badge>
         </p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard label="Workers Empowered" value="1M+" icon={<Users className="h-5 w-5" />} tone="orange" hint="Across 8 cities" />
-        <MetricCard label="Jobs Matched" value="250K+" icon={<Briefcase className="h-5 w-5" />} tone="blue" />
-        <MetricCard label="Income Increase" value="+20%" icon={<TrendingUp className="h-5 w-5" />} tone="green" />
-        <MetricCard label="Savings Improvement" value="+35%" icon={<Wallet className="h-5 w-5" />} tone="purple" />
+        <MetricCard label="Workers Onboarded" value={t.workers.toLocaleString("en-IN")} icon={<Users className="h-5 w-5" />} tone="orange" hint={`Across ${data.cityDistribution.length} cities`} />
+        <MetricCard label="Hires Completed" value={t.hires.toLocaleString("en-IN")} icon={<Briefcase className="h-5 w-5" />} tone="blue" hint={`${t.applications.toLocaleString("en-IN")} applications`} />
+        <MetricCard label="Avg Wage Lift" value={`${wageLift >= 0 ? "+" : ""}${wageLift}%`} icon={<TrendingUp className="h-5 w-5" />} tone="green" hint={`₹${t.avgCityBaseWage} base → ₹${t.avgExpectedWage} expected`} />
+        <MetricCard label="Payment Compliance" value={`${t.compliance}%`} icon={<Wallet className="h-5 w-5" />} tone="purple" hint={`${t.overdueCount} overdue`} />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-5">
         <Card>
           <CardHeader>
-            <CardTitle>Income improvement</CardTitle>
-            <CardSubtitle>Average monthly income: Before vs After ShramSetu</CardSubtitle>
+            <CardTitle>Average daily wage</CardTitle>
+            <CardSubtitle>City base vs worker expected vs settled payments</CardSubtitle>
           </CardHeader>
           <CardBody>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={incomeImprovement}>
+                <BarChart data={wageBars}>
                   <XAxis dataKey="m" axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} tickFormatter={(v) => formatINRShort(v)} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} tickFormatter={(v) => formatINRShort(v as number)} />
                   <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} formatter={(v: any) => formatINR(v as number)} />
                   <Bar dataKey="v" fill="#F4511E" radius={[6, 6, 0, 0]} />
                 </BarChart>
@@ -87,17 +137,17 @@ export default function AnalyticsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Trust score growth</CardTitle>
-            <CardSubtitle>Network average trust score Jan → Jun</CardSubtitle>
+            <CardTitle>Trust score by signup cohort</CardTitle>
+            <CardSubtitle>Average current trust score of workers who joined each month</CardSubtitle>
           </CardHeader>
           <CardBody>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trustGrowth}>
+                <LineChart data={data.trustTrend}>
                   <XAxis dataKey="m" axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
                   <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
                   <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} />
-                  <Line type="monotone" dataKey="v" stroke="#178B4A" strokeWidth={3} dot={{ fill: "#178B4A", r: 5 }} />
+                  <Line type="monotone" dataKey="v" stroke="#178B4A" strokeWidth={3} dot={{ fill: "#178B4A", r: 5 }} connectNulls />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -106,15 +156,15 @@ export default function AnalyticsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Job matching growth</CardTitle>
-            <CardSubtitle>Monthly successful job matches</CardSubtitle>
+            <CardTitle>Job applications</CardTitle>
+            <CardSubtitle>Applications received per month</CardSubtitle>
           </CardHeader>
           <CardBody>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={matching}>
+                <AreaChart data={data.matchingTrend}>
                   <XAxis dataKey="m" axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
+                  <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
                   <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} />
                   <Area type="monotone" dataKey="v" stroke="#2367C9" fill="#2367C9" fillOpacity={0.2} />
                 </AreaChart>
@@ -125,16 +175,16 @@ export default function AnalyticsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Savings improvement</CardTitle>
-            <CardSubtitle>Worker cohort savings rate progression</CardSubtitle>
+            <CardTitle>Network signup growth</CardTitle>
+            <CardSubtitle>Cumulative workers &amp; contractors on the platform</CardSubtitle>
           </CardHeader>
           <CardBody>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={savings}>
+                <LineChart data={data.signupGrowth}>
                   <XAxis dataKey="m" axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} formatter={(v: any) => `${v}%`} />
+                  <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
+                  <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} />
                   <Line type="monotone" dataKey="v" stroke="#7047C6" strokeWidth={3} dot={{ fill: "#7047C6", r: 5 }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -144,26 +194,26 @@ export default function AnalyticsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Jobs by city</CardTitle>
-            <CardSubtitle>Active jobs distribution</CardSubtitle>
+            <CardTitle>Workers by city</CardTitle>
+            <CardSubtitle>Where the workforce is based</CardSubtitle>
           </CardHeader>
           <CardBody>
             <div className="flex items-center gap-3">
               <div className="h-48 flex-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={cities} dataKey="value" innerRadius={45} outerRadius={75} paddingAngle={2}>
-                      {cities.map((c) => <Cell key={c.name} fill={c.color} />)}
+                    <Pie data={data.cityDistribution} dataKey="value" innerRadius={45} outerRadius={75} paddingAngle={2}>
+                      {data.cityDistribution.map((c, i) => <Cell key={c.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                     </Pie>
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
               <div className="flex-1 space-y-1.5">
-                {cities.map((c) => (
+                {data.cityDistribution.map((c, i) => (
                   <div key={c.name} className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-1.5">
-                      <div className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />
+                      <div className="h-2.5 w-2.5 rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
                       <span className="text-navy-900">{c.name}</span>
                     </div>
                     <span className="font-semibold text-navy-900">{c.value}</span>
@@ -177,15 +227,15 @@ export default function AnalyticsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Skill demand</CardTitle>
-            <CardSubtitle>Top skills requested by contractors</CardSubtitle>
+            <CardSubtitle>Active jobs requesting each skill</CardSubtitle>
           </CardHeader>
           <CardBody>
             <div className="h-48">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={skills} layout="vertical">
-                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
-                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} width={70} />
-                  <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} formatter={(v: any) => `${v}%`} />
+                <BarChart data={data.skillDemand.slice(0, 8)} layout="vertical">
+                  <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: "#667085", fontSize: 12 }} width={90} />
+                  <Tooltip cursor={{ fill: "transparent" }} contentStyle={{ borderRadius: 8, border: "1px solid #EAECF0" }} formatter={(v: any) => `${v} job${v === 1 ? "" : "s"}`} />
                   <Bar dataKey="demand" fill="#7047C6" radius={[0, 6, 6, 0]} />
                 </BarChart>
               </ResponsiveContainer>

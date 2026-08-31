@@ -11,7 +11,7 @@ import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 
 export default function ContractorPaymentsPage() {
-  const userId = "usr_c_1";
+  const userId = useStore((s) => s.currentUserId) || "";
   const payments = useStore((s) => s.payments.filter((p) => p.contractorId === userId));
   const jobs = useStore((s) => s.jobs);
   const workers = useStore((s) => s.users);

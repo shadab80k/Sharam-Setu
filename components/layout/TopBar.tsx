@@ -49,18 +49,15 @@ export function TopBar({ title, subtitle, role }: TopBarProps) {
   const unread = useStore((s) => s.notifications.filter((n) => !n.read && n.userId === s.currentUserId).length);
   const currentLocation = useStore((s) => s.currentLocation);
   const setLocation = useStore((s) => s.setLocation);
-  const switchUser = useStore((s) => s.switchUser);
+  const logout = useStore((s) => s.logout);
 
   const [openLocation, setOpenLocation] = useState(false);
-  const [openSwitch, setOpenSwitch] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const locRef = useRef<HTMLDivElement>(null);
-  const switchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (locRef.current && !locRef.current.contains(e.target as Node)) setOpenLocation(false);
-      if (switchRef.current && !switchRef.current.contains(e.target as Node)) setOpenSwitch(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -135,41 +132,20 @@ export function TopBar({ title, subtitle, role }: TopBarProps) {
             )}
           </div>
 
-          <div className="relative" ref={switchRef}>
-            <button
-              onClick={() => setOpenSwitch((o) => !o)}
-              aria-label={`Role: ${role}, switch demo role`}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-navy-900 text-white text-xs font-medium hover:bg-navy-800 transition"
-            >
-              <span className="hidden md:inline">Role:</span>
-              <span className="capitalize text-orange-400 font-semibold">{role}</span>
-              <ChevronDown className="h-3 w-3 text-gray-300" />
-            </button>
-            {openSwitch && (
-              <div className="absolute right-0 mt-1.5 w-44 rounded-xl border border-gray-200 bg-white shadow-lg p-1.5 z-40 animate-fade-in">
-                <div className="px-2 py-1 text-[10px] font-semibold text-gray-700 uppercase">Switch Demo Role</div>
-                {(["worker", "contractor", "admin"] as const).map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => {
-                      switchUser(r);
-                      setOpenSwitch(false);
-                    }}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs capitalize flex items-center justify-between ${
-                      r === role ? "bg-orange-100 text-orange-700 font-semibold" : "text-gray-800 hover:bg-cream-100"
-                    }`}
-                  >
-                    <span>{r}</span>
-                    {r === role && <span className="h-1.5 w-1.5 rounded-full bg-orange-600" />}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <button
+            onClick={() => logout()}
+            aria-label={`Sign out of ${role} account`}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-navy-900 text-white text-xs font-medium hover:bg-navy-800 transition"
+          >
+            <span className="hidden md:inline">Role:</span>
+            <span className="capitalize text-orange-400 font-semibold">{role}</span>
+            <span className="hidden sm:inline text-gray-300">·</span>
+            <span className="hidden sm:inline">Sign out</span>
+          </button>
 
           {/* Notifications */}
           <Link
-            href={`/${role}/notifications`}
+            href={role === "admin" ? "/admin/reports" : `/${role}/notifications`}
             aria-label={`Notifications${unread > 0 ? `, ${unread} unread` : ""}`}
             className="relative p-2 text-gray-700 hover:text-navy-900 rounded-lg hover:bg-cream-100 transition"
           >

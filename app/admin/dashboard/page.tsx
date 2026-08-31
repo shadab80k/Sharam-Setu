@@ -29,24 +29,54 @@ export default function AdminDashboard() {
   const overdue = payments.filter((p) => p.status === "overdue").length;
   const totalVolume = payments.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
 
-  const workerGrowth = [
-    { m: "Jan", workers: 1200, contractors: 320 },
-    { m: "Feb", workers: 1450, contractors: 360 },
-    { m: "Mar", workers: 1820, contractors: 410 },
-    { m: "Apr", workers: 2200, contractors: 450 },
-    { m: "May", workers: 2700, contractors: 510 },
-    { m: "Jun", workers: 3200, contractors: 580 },
-  ];
+  // Real monthly signup growth (cumulative workers/contractors from user.createdAt)
+  const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+  const monthKeys: Date[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - i);
+    monthKeys.push(d);
+  }
+  const workerGrowth = monthKeys.map((d, idx) => {
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    return {
+      m: d.toLocaleString("en-IN", { month: "short" }),
+      workers: users.filter((u) => u.role === "worker" && new Date(u.createdAt) < end).length,
+      contractors: users.filter((u) => u.role === "contractor" && new Date(u.createdAt) < end).length,
+      _i: idx,
+    };
+  });
 
-  const jobsMatched = [
-    { m: "Jan", v: 1200 }, { m: "Feb", v: 1480 }, { m: "Mar", v: 1820 },
-    { m: "Apr", v: 2100 }, { m: "May", v: 2450 }, { m: "Jun", v: 2800 },
-  ];
+  // Real monthly hires (applications selected/completed per month)
+  const jobsMatched = monthKeys.map((d) => {
+    const start = d;
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    return {
+      m: d.toLocaleString("en-IN", { month: "short" }),
+      v: apps.filter((a) => {
+        if (!["selected", "completed"].includes(a.status)) return false;
+        const at = new Date(a.appliedAt);
+        return at >= start && at < end;
+      }).length,
+    };
+  });
 
-  const trustTrend = [
-    { m: "Jan", v: 45 }, { m: "Feb", v: 52 }, { m: "Mar", v: 61 },
-    { m: "Apr", v: 70 }, { m: "May", v: 78 }, { m: "Jun", v: 87 },
-  ];
+  // Real network trust trend (avg current worker trust score per signup cohort)
+  const workerProfiles = useStore((s) => s.workerProfiles);
+  const scoreByUser = new Map(workerProfiles.map((p) => [p.userId, p.trustScore]));
+  const trustTrend = monthKeys.map((d) => {
+    const start = d;
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    const scores = users
+      .filter((u) => u.role === "worker" && new Date(u.createdAt) >= start && new Date(u.createdAt) < end)
+      .map((u) => scoreByUser.get(u.id))
+      .filter((s): s is number => typeof s === "number");
+    return {
+      m: d.toLocaleString("en-IN", { month: "short" }),
+      v: scores.length ? Math.round(scores.reduce((s, n) => s + n, 0) / scores.length) : 0,
+    };
+  });
 
   return (
     <div className="space-y-5">
@@ -59,10 +89,10 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard label="Workers" value={workers.length.toLocaleString()} icon={<Users className="h-5 w-5" />} tone="orange" trend={{ value: 18, positive: true }} />
-        <MetricCard label="Contractors" value={contractors.length.toLocaleString()} icon={<Hammer className="h-5 w-5" />} tone="blue" trend={{ value: 14, positive: true }} />
+        <MetricCard label="Workers" value={workers.length.toLocaleString()} icon={<Users className="h-5 w-5" />} tone="orange" hint={`${workers.filter((w) => new Date(w.createdAt) >= monthStart).length} joined this month`} />
+        <MetricCard label="Contractors" value={contractors.length.toLocaleString()} icon={<Hammer className="h-5 w-5" />} tone="blue" hint={`${contractors.filter((c) => new Date(c.createdAt) >= monthStart).length} joined this month`} />
         <MetricCard label="Active Jobs" value={activeJobs.toLocaleString()} icon={<Briefcase className="h-5 w-5" />} tone="purple" />
-        <MetricCard label="Jobs Matched" value={matched.toLocaleString()} icon={<CheckCircle2 className="h-5 w-5" />} tone="green" trend={{ value: 24, positive: true }} />
+        <MetricCard label="Jobs Matched" value={matched.toLocaleString()} icon={<CheckCircle2 className="h-5 w-5" />} tone="green" hint={`${apps.filter((a) => ["selected", "completed"].includes(a.status) && new Date(a.appliedAt) >= monthStart).length} hires this month`} />
         <MetricCard label="Payments Volume" value={formatINRShort(totalVolume)} icon={<Wallet className="h-5 w-5" />} tone="green" />
         <MetricCard label="Pending Verification" value={pendingVerif.toString()} icon={<ShieldCheck className="h-5 w-5" />} tone="amber" hint="Needs review" />
         <MetricCard label="Fraud Alerts" value={fraudAlerts.toString()} icon={<AlertOctagon className="h-5 w-5" />} tone="red" hint="Active signals" />
@@ -103,9 +133,9 @@ export default function AdminDashboard() {
             <Link href="/admin/fraud" className="flex items-center justify-between p-3 rounded-lg bg-red-100 hover:bg-red-100/80 transition">
               <div>
                 <div className="text-sm font-semibold text-red-600">High-risk reports</div>
-                <div className="text-xs text-gray-700">Fraud & safety signals</div>
+                <div className="text-xs text-gray-700">Fraud &amp; safety signals</div>
               </div>
-              <div className="text-2xl font-bold text-red-600">4</div>
+              <div className="text-2xl font-bold text-red-600">{fraudAlerts + reports.filter((r) => r.status !== "resolved").length}</div>
             </Link>
             <Link href="/admin/verifications" className="flex items-center justify-between p-3 rounded-lg bg-amber-100 hover:bg-amber-100/80 transition">
               <div>

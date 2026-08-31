@@ -35,7 +35,7 @@ const PIPELINE = [
 ] as const;
 
 export default function ContractorDashboard() {
-  const userId = "usr_c_1";
+  const userId = useStore((s) => s.currentUserId) || "";
   const user = useStore((s) => s.users.find((u) => u.id === userId));
   const profile = useStore((s) => s.contractorProfiles.find((p) => p.userId === userId));
   const jobs = useStore((s) => s.jobs.filter((j) => j.contractorId === userId));
@@ -91,8 +91,7 @@ export default function ContractorDashboard() {
           value={applicants}
           icon={<Users className="h-5 w-5" />}
           tone="blue"
-          trend={{ value: 24, positive: true }}
-          hint="This week"
+          hint={`${myApps.filter((a) => Date.now() - new Date(a.appliedAt).getTime() < 7 * 86400000).length} this week`}
         />
         <MetricCard
           label="Workers Hired"

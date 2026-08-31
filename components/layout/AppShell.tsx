@@ -6,6 +6,7 @@ import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { ToastViewport } from "../ui/Toast";
 import { useStore } from "@/lib/store";
+import { useRealtimeSync } from "@/lib/hooks/useRealtimeSync";
 import { DashboardSkeleton } from "../ui/Skeleton";
 import type { Role } from "@/lib/types";
 
@@ -19,6 +20,7 @@ interface AppShellProps {
 export function AppShell({ role, title, subtitle, children }: AppShellProps) {
   const pathname = usePathname();
   const [isNavigating, setIsNavigating] = useState(false);
+  useRealtimeSync();
 
   useEffect(() => {
     if (typeof window !== "undefined") {
