@@ -151,7 +151,34 @@ The career roadmap is a hardcoded array (`app/worker/career/page.tsx`): `current
 9. **Custom domain** — currently `*.insforge.site`.
 10. **Legal/compliance** — privacy policy, ToS, DPDP Act registration, grievance officer — user's responsibility, currently absent.
 
-> Note: the "Finishing" badge seen on job cards is a legitimate job **category** (like Construction), not leftover prototype text.
+### 5.7 📦 Hardcoded UI content inventory (reverse-engineered)
+
+| # | Location | What's hardcoded | Impact |
+|---|---|---|---|
+| 1 | `app/worker/dashboard/page.tsx:242-247` | **"AI suggestion" card** — *"Tile fitting could increase your earning potential by 12–18%"* is static text shown to **every worker** regardless of profession or data | Fake AI claim on the main dashboard; should be generated from the worker's profession + real demand (or via the assistant API) |
+| 2 | `app/worker/career/page.tsx` | **Career PATH** — Mason-first roadmap with `current: true` fixed, static wages/demand; **COURSES** list also static | Every worker sees the Mason→TileFitter→Supervisor path even if they're a Plumber. `enrollCourse` itself is real (persists to DB) |
+| 3 | `app/worker/trust/page.tsx:91` | **Skill-assessment quiz** — 3 fixed questions, all masonry-specific | A Carpenter or Plumber gets a *masonry* quiz; scoring is real but content is not profession-aware |
+| 4 | `scripts/seed.mts:185-186` | Contractor `payment_reliability`, `response_rate`, `completed_jobs` are random seed values (see §3) | Displayed as real metrics on contractor dashboard |
+| 5 | `components/features/LoginPageClient.tsx` + signup | Avatars via dicebear URL; no photo upload | Cosmetic, but workers expect a photo ID |
+| 6 | Landing page copy | Marketing feature claims (voice assistant, etc.) | Content-vs-reality mismatch — voice is NOT implemented (see §5.8) |
+
+**Legitimate config (NOT bugs):** report categories/severity options, application status TIMELINE, job STEPS wizard, PIE_COLORS, city list (`lib/utils/cities`) — these are meant to be constants. The "Finishing" badge on job cards is a job *category*, not leftover prototype text.
+
+### 5.8 ❗ Missing flows (reverse-engineered gaps)
+
+1. **Voice assistant missing** — the product is advertised as a "Multilingual AI **Voice** Assistant", but `SpeechRecognition`/`speechSynthesis` are **never used** anywhere. The assistant is text-chat only. For the target audience (low-literacy workers), voice is arguably the core feature, not an add-on.
+2. **Forgot-password flow missing** — there is no "Forgot password?" UI or API. If an email-registered user forgets their password, their account is unrecoverable (InsForge supports email reset codes — `reset_password_method = "code"` is configured — the route/UI simply doesn't exist).
+3. **Email verification disabled** — `require_email_verification = false`; signups with fake emails work. Phone-first is fine for India, but at minimum a verification nudge on the trust profile would harden identity points.
+4. **Server-side search & pagination missing** — all 7 list/search screens (admin workers/contractors/jobs/applications/payments, contractor worker-directory, worker jobs) filter **client-side over already-loaded store rows** (bootstrap caps at 500 rows/table). No pagination anywhere. Works for the demo dataset; breaks at real scale.
+5. **Dead code from the prototype era** — `lib/data/seed.ts` (the old ~1000-line client-side seed) is imported **nowhere** but still in the repo; `scripts/verify-full-flow.ts` (old 27-point local test) is superseded by `scripts/e2e.mts` but still present. Both should be deleted to avoid confusion.
+6. **No Web OTP autofill** — on Android the SMS code has to be typed manually (`WebOTP` API / `autocomplete="one-time-code"` not wired).
+
+### 5.9 Verified false alarms (checked and confirmed fine)
+
+- **Notifications mark-read** — goes through `POST /api/notifications` (real API), not a client write.
+- **addSkill / removeSkill** — route through `PATCH /api/worker/profile` (skills array) — real.
+- **Wage estimator** — really used in the contractor job-posting form (`estimateWage()`).
+- **"Finishing" job badge** — a legitimate job category from the DB.
 
 ---
 
@@ -171,19 +198,28 @@ The career roadmap is a hardcoded array (`app/worker/career/page.tsx`): `current
 9. **Location system** (§5.1) — GPS detect + signup city field + profile edit + real-coords matching
 10. **Worker profile edit UI** (§5.3) — expose the 10 API-editable fields hidden behind 2
 11. **Contractor profile page** (§5.4) — company/GST/contact editing
-12. **Career roadmap personalization** (§5.5) — generate from worker's profession + real demand
-13. Avatar upload (bucket + signed URLs + profile UI)
-14. PWA push notifications (+ optionally Android wrapper)
-15. Contractor soft-metrics derived from real data (see §3)
-16. Hindi UI toggle + empty-state polish
-17. Backup & restore drill; dependency + security audit (npm audit, pen-test)
+12. **Career roadmap personalization** (§5.5) — generate from worker's profession + real demand; same engine should power the dashboard "AI suggestion" card (§5.7.1)
+13. **Forgot-password flow** (§5.8.2) — InsForge email reset codes already supported
+14. **Profession-aware quiz bank** (§5.7.3) — per-trade question sets
+15. Avatar upload (bucket + signed URLs + profile UI)
+16. **Voice assistant** (§5.8.1) — browser SpeechRecognition + speechSynthesis wrapper around the existing chat API
+17. PWA push notifications (+ optionally Android wrapper)
+18. Contractor soft-metrics derived from real data (see §3)
+19. Hindi UI toggle + empty-state polish
+20. Backup & restore drill; dependency + security audit (npm audit, pen-test)
 
 ### P2 — Scale (1–2 months)
-18. Replace mega-bootstrap with per-page queries + pagination
-19. SQL materialized views for admin analytics
-20. Realtime job-feed channels sharded by city
-21. Caching/CDN layer; read replicas if load demands
-22. Native Android app if PWA proves demand
+21. **Server-side search + pagination** on all list screens (§5.8.4)
+22. Replace mega-bootstrap with per-page queries + pagination
+23. SQL materialized views for admin analytics
+24. Realtime job-feed channels sharded by city
+25. Web OTP autofill (Android)
+26. Caching/CDN layer; read replicas if load demands
+27. Native Android app if PWA proves demand
+
+### Hygiene (anytime, ~1 hour)
+- Delete dead code: `lib/data/seed.ts`, `scripts/verify-full-flow.ts` (§5.8.5)
+- Align landing-page copy with actual feature set
 
 ---
 
@@ -191,6 +227,10 @@ The career roadmap is a hardcoded array (`app/worker/career/page.tsx`): `current
 
 **Backend architecture is production-grade today**: real database, real auth, server-authoritative trust, atomic money-state machine, RBAC-defended APIs, realtime, cron, and a 35-assertion E2E suite that passes against production.
 
-**Frontend has a product-completeness gap**, not an engineering gap: the backend APIs already support onboarding, location, and full profile editing — the UI simply doesn't expose them yet (§5.1–§5.5, roughly 4–5 days of focused UI work). These should land **before** showing the platform to real workers, because a first-time user today lands on an empty, Lucknow-defaulted dashboard with no way to set their profession.
+**Frontend has a two-sided gap**, not an engineering gap:
+1. **Product-completeness** (§5.1–§5.5) — the backend APIs already support onboarding, location, and full profile editing; the UI simply doesn't expose them (~4–5 days of focused UI work).
+2. **Advertised-but-missing features** (§5.8) — voice assistant and forgot-password are marketed/expected but don't exist, and the career page/AI-suggestion/quiz content is hardcoded (§5.7).
 
-What separates current state from *operating* in production is therefore: **the §5 UI flows** (~1 week), **3 paid accounts** (SMS, Razorpay, KYC vendor), **monitoring**, and **legal/compliance**.
+A first-time user today lands on an empty, Lucknow-defaulted dashboard they can't meaningfully edit, sees a Mason career path regardless of their trade, and reads an "AI suggestion" that isn't AI. None of this is hard to fix — the data layer under it is real and solid — but it should land **before** the platform is shown to real workers.
+
+**Realistic path to operating in production:** §5 UI flows (~1 week) → 3 paid accounts (SMS, Razorpay, KYC vendor) → monitoring → legal/DPDP. Everything else is enhancement, not correction.
