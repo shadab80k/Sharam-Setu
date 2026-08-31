@@ -19,9 +19,11 @@ export interface SessionUser {
  */
 export async function getSessionUser(): Promise<SessionUser | null> {
   try {
+    const baseUrl = process.env.NEXT_PUBLIC_INSFORGE_URL || "https://6b4vx78a.ap-southeast.insforge.app";
+    const anonKey = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY || "anon_14360467e7d161c0fc6f7d1fe89f5734195df8dcc04cc6c5cd8699a10750dfee";
     const supabase = createServerClient({
-      baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
-      anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
+      baseUrl,
+      anonKey,
       cookies: await cookies(),
     });
     const { data, error } = await supabase.auth.getCurrentUser();

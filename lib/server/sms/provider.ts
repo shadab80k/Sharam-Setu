@@ -101,7 +101,8 @@ export function generateOtp(): string {
 }
 
 export function hashOtp(code: string): string {
-  return crypto.createHash("sha256").update(`${code}:${process.env.INSFORGE_API_KEY}`).digest("hex");
+  const secret = process.env.INSFORGE_API_KEY || "ik_2063fcb27fb65c187f0aca0051c03ab9";
+  return crypto.createHash("sha256").update(`${code}:${secret}`).digest("hex");
 }
 
 export const OTP_TTL_MINUTES = 5;
