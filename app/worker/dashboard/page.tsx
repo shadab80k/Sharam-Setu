@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { JobCard } from "@/components/features/JobCard";
-import { Wallet, TrendingDown, Briefcase, PiggyBank, Sparkles, ArrowRight, MapPin, CheckCircle2, ArrowUpRight, FileCheck2, ShieldCheck } from "lucide-react";
+import { Wallet, TrendingDown, Briefcase, PiggyBank, Sparkles, ArrowRight, CheckCircle2, ArrowUpRight, FileCheck2, ShieldCheck } from "lucide-react";
 import { formatINR, formatINRShort } from "@/lib/utils";
 import { calculateMatchScore } from "@/lib/services/jobMatching";
 import { CITIES } from "@/lib/utils/cities";
@@ -35,7 +35,6 @@ export default function WorkerDashboard() {
   const verifications = useStore((s) => s.verifications);
   const assessments = useStore((s) => s.assessments);
   const currentLocation = useStore((s) => s.currentLocation);
-  const setLocation = useStore((s) => s.setLocation);
   const toggleWorkerAvailability = useStore((s) => s.toggleWorkerAvailability);
   const router = useRouter();
   const city = CITIES.find((c) => c.id === currentLocation) || CITIES[0];
@@ -105,8 +104,6 @@ export default function WorkerDashboard() {
     });
   }, [user, profile]);
 
-  const [cityMenuOpen, setCityMenuOpen] = useState(false);
-
   if (!user || !profile) return null;
 
   // New worker → guided setup (never shows an empty dashboard)
@@ -135,29 +132,6 @@ export default function WorkerDashboard() {
               {profile.availability === "available" ? "Available for work" : "Working / Busy"}
             </Badge>
           </button>
-          <div className="relative">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setCityMenuOpen((o) => !o)}
-              title="Change your work city"
-            >
-              <MapPin className="h-3.5 w-3.5 text-orange-600" /> {city.name}
-            </Button>
-            {cityMenuOpen && (
-              <div className="absolute right-0 mt-1.5 w-44 rounded-xl border border-gray-200 bg-white shadow-lg p-1.5 z-40">
-                {CITIES.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => { setLocation(c.id); setCityMenuOpen(false); }}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-sm ${c.id === currentLocation ? "bg-orange-50 text-orange-700 font-semibold" : "text-navy-900 hover:bg-cream-50"}`}
-                  >
-                    {c.name}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
