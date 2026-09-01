@@ -223,31 +223,25 @@ export default function ContractorDashboard() {
 
             {/* Detailed Performance Metrics */}
             <div className="space-y-2.5 pt-1">
-              <div>
-                <div className="flex justify-between text-xs text-gray-300 mb-1">
+              {profile.paidPayments > 0 ? (
+                <div>
+                  <div className="flex justify-between text-xs text-gray-300 mb-1">
+                    <span>Payment reliability</span>
+                    <span className="font-bold text-white">{profile.paymentReliability}% on time</span>
+                  </div>
+                  <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${profile.paymentReliability >= 80 ? "bg-green-500" : profile.paymentReliability >= 50 ? "bg-amber-400" : "bg-red-400"}`}
+                      style={{ width: `${profile.paymentReliability}%` }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-between text-xs text-gray-400">
                   <span>Payment reliability</span>
-                  <span className="font-bold text-white">{profile.paymentReliability}%</span>
+                  <span className="italic">No payments yet</span>
                 </div>
-                <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-green-500 rounded-full transition-all duration-500"
-                    style={{ width: `${profile.paymentReliability}%` }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs text-gray-300 mb-1">
-                  <span>Response rate</span>
-                  <span className="font-bold text-white">{profile.responseRate}%</span>
-                </div>
-                <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-400 rounded-full transition-all duration-500"
-                    style={{ width: `${profile.responseRate}%` }}
-                  />
-                </div>
-              </div>
+              )}
 
               <div className="flex items-center justify-between pt-1 text-xs text-gray-300">
                 <span>Jobs completed</span>

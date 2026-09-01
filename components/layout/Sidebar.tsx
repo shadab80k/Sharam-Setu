@@ -88,6 +88,7 @@ const contractorNav: { group: string; items: NavItem[] }[] = [
   {
     group: "TRUST",
     items: [
+      { label: "Profile", href: "/contractor/profile", icon: <User className="h-4 w-4" /> },
       { label: "Reviews", href: "/contractor/reviews", icon: <Star className="h-4 w-4" /> },
     ],
   },

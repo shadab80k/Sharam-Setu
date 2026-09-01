@@ -38,9 +38,11 @@ export interface ContractorProfile {
   trustScore: number;
   trustLabel: string;
   rating: number;
+  /** % of paid payments made on/before due date — derived from the ledger, 0 when no history */
   paymentReliability: number;
   completedJobs: number;
-  responseRate: number;
+  /** How many paid payments the reliability figure is based on (hide the metric when 0) */
+  paidPayments: number;
   complaintCount: number;
 }
 

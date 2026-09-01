@@ -6,6 +6,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { Badge } from "@/components/ui/Badge";
 import { Bell, Briefcase, Wallet, Shield, Sparkles, Inbox } from "lucide-react";
 import { timeAgo } from "@/lib/utils";
+import { PushOptIn } from "@/components/features/PushOptIn";
 import { useState, useMemo } from "react";
 import Link from "next/link";
 
@@ -35,6 +36,7 @@ export default function ContractorNotificationsPage() {
           <p className="text-sm text-gray-700 mt-1">{unread} unread · {notifications.length} total</p>
         </div>
         {unread > 0 && <button onClick={() => markAllRead(userId)} className="text-sm text-orange-600 font-medium">Mark all as read</button>}
+        <PushOptIn />
       </div>
 
       <Tabs

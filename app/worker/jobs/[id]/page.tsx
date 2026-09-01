@@ -182,7 +182,11 @@ export default function WorkerJobDetail() {
                   </div>
                   <div className="p-2 rounded-md bg-cream-100 col-span-2">
                     <div className="text-gray-600">Payment reliability</div>
-                    <div className="font-semibold text-navy-900">{contractor.paymentReliability}%</div>
+                    <div className="font-semibold text-navy-900">
+                      {contractor.paidPayments > 0
+                        ? `${contractor.paymentReliability}% on-time payments`
+                        : "No payments made yet on ShramSetu"}
+                    </div>
                   </div>
                 </div>
               </CardBody>

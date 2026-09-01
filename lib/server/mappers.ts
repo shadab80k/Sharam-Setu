@@ -36,8 +36,11 @@ export function mapContractorProfile(r: any): ContractorProfile {
   return {
     userId: r.user_id, companyName: r.company_name, businessType: r.business_type,
     location: r.location, trustScore: r.trust_score, trustLabel: r.trust_label,
-    rating: Number(r.rating), paymentReliability: r.payment_reliability,
-    completedJobs: r.completed_jobs, responseRate: r.response_rate,
+    rating: Number(r.rating), paymentReliability: r.payment_reliability ?? 0,
+    completedJobs: r.completed_jobs ?? 0,
+    // paidPayments is computed by the caller (bootstrap/profile API) from the
+    // payments ledger so the UI can hide reliability when there's no history
+    paidPayments: r.paid_payments ?? 0,
     complaintCount: r.complaint_count,
   };
 }

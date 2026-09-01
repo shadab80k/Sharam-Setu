@@ -20,6 +20,8 @@ const TrustLineChart = dynamic(() => import("@/components/features/TrustLineChar
 import { Modal } from "@/components/ui/Modal";
 import { Input, Select } from "@/components/ui/Input";
 import { useState } from "react";
+import { quizFor } from "@/lib/services/quizBank";
+import { PROFESSION_NAMES } from "@/lib/services/professions";
 
 export default function WorkerTrustPage() {
   const currentUserId = useStore((s) => s.currentUserId) || "usr_w_1";
@@ -43,10 +45,11 @@ export default function WorkerTrustPage() {
   const [workModalOpen, setWorkModalOpen] = useState(false);
   const [certModalOpen, setCertModalOpen] = useState(false);
 
-  // Skill Quiz State
-  const [selectedSkill, setSelectedSkill] = useState("Masonry");
+  // Skill Quiz State — questions follow the selected profession
+  const [selectedSkill, setSelectedSkill] = useState(profile?.profession ?? "Mason");
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [earnedScore, setEarnedScore] = useState(0);
 
   // Work Record State
   const [workForm, setWorkForm] = useState({
@@ -88,28 +91,8 @@ export default function WorkerTrustPage() {
     return [...snapshots.slice(-5), { month: "Now", score: result.score }];
   })();
 
-  const quizQuestions = [
-    {
-      q: "What is the standard ratio of cement to sand for brick masonry mortar?",
-      options: ["1:1", "1:4 to 1:6", "1:10", "1:15"],
-      correct: 1,
-    },
-    {
-      q: "Why is water curing necessary for newly constructed concrete / brick structures?",
-      options: [
-        "To clean dust",
-        "To prevent overheating and achieve proper hydration strength",
-        "To make paint adhere faster",
-        "It is only done for aesthetic look",
-      ],
-      correct: 1,
-    },
-    {
-      q: "Which tool is essential for checking vertical alignment of walls?",
-      options: ["Plumb bob (Sahul)", "Trowel", "Measuring Tape", "Hand Saw"],
-      correct: 0,
-    },
-  ];
+  // Questions come from the shared quiz bank for the selected profession
+  const quizQuestions = quizFor(selectedSkill);
 
   const handleFinishQuiz = () => {
     let scoreCount = 0;
@@ -117,13 +100,14 @@ export default function WorkerTrustPage() {
       if (quizAnswers[idx] === q.correct) scoreCount += 1;
     });
     const finalScore = Math.round((scoreCount / quizQuestions.length) * 100);
-    completeAssessment(currentUserId, selectedSkill, Math.max(75, finalScore));
+    setEarnedScore(finalScore);
+    completeAssessment(currentUserId, selectedSkill, finalScore);
     setQuizSubmitted(true);
     setTimeout(() => {
       setAssessmentModalOpen(false);
       setQuizSubmitted(false);
       setQuizAnswers({});
-    }, 1200);
+    }, 1500);
   };
 
   const handleSaveWorkHistory = () => {
@@ -323,22 +307,21 @@ export default function WorkerTrustPage() {
               setSelectedSkill(e.target.value);
               setQuizAnswers({});
             }}
-            options={[
-              { value: "Masonry", label: "Masonry" },
-              { value: "Tiling", label: "Tile Fitting" },
-              { value: "Plastering", label: "Plastering & Finishing" },
-              { value: "Plumbing", label: "Plumbing" },
-              { value: "Wiring", label: "Electrical Wiring" },
-            ]}
+            options={PROFESSION_NAMES.map((p) => ({ value: p, label: p }))}
           />
 
           {quizSubmitted ? (
             <div className="py-8 text-center space-y-2 animate-fade-in">
-              <div className="h-12 w-12 rounded-full bg-green-600 text-white flex items-center justify-center mx-auto">
+              <div className={`h-12 w-12 rounded-full text-white flex items-center justify-center mx-auto ${earnedScore >= 60 ? "bg-green-600" : "bg-amber-500"}`}>
                 ✓
               </div>
               <h3 className="text-lg font-bold text-navy-900">Assessment Complete!</h3>
-              <p className="text-sm text-green-600 font-semibold">+8 Trust Score Earned</p>
+              <p className="text-sm text-gray-700">
+                You scored <span className="font-bold text-navy-900">{earnedScore}/100</span> in {selectedSkill}.
+                {earnedScore >= 60
+                  ? " Great work — this counts toward your Trust Score."
+                  : " Scores below 60 are not counted toward trust. Try again after some practice!"}
+              </p>
             </div>
           ) : (
             <div className="space-y-4">

@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Hammer, Shield, Wallet, Sparkles, Phone, ChevronRight, CheckCircle2, UserPlus, Mail } from "lucide-react";
 import { ToastViewport } from "@/components/ui/Toast";
+import { CITIES } from "@/lib/utils/cities";
 
-type Mode = "phone" | "otp" | "email" | "signup";
+type Mode = "phone" | "otp" | "email" | "signup" | "forgot" | "reset";
 
 const DEMO_ACCOUNTS = [
   { role: "Worker", email: "worker@shramsetu.local" },
@@ -29,10 +30,14 @@ export default function LoginPageClient() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<"worker" | "contractor">("worker");
+  const [signupCity, setSignupCity] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [devOtp, setDevOtp] = useState<string | null>(null);
   const [resendTimer, setResendTimer] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [resetCode, setResetCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [resetSent, setResetSent] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -88,7 +93,8 @@ export default function LoginPageClient() {
       const user = await verifyOtp(phone, code);
       if (!user) throw new Error("Login failed");
       pushToast("success", `Welcome back, ${user.name}!`);
-      window.location.href = `/${user.role}/dashboard`;
+      // Workers land on onboarding, which itself redirects completed profiles straight to the dashboard
+      window.location.href = user.role === "worker" ? "/worker/onboarding" : `/${user.role}/dashboard`;
     } catch (e: any) {
       if (e.signupRequired) {
         setMode("signup");
@@ -111,7 +117,7 @@ export default function LoginPageClient() {
       const user = await loginByEmail(email, password);
       if (!user) throw new Error("Login failed");
       pushToast("success", `Welcome back, ${user.name}!`);
-      window.location.href = `/${user.role}/dashboard`;
+      window.location.href = user.role === "worker" ? "/worker/onboarding" : `/${user.role}/dashboard`;
     } catch (e: any) {
       pushToast("error", e.message ?? "Login failed");
     } finally {
@@ -124,12 +130,17 @@ export default function LoginPageClient() {
       pushToast("error", "Fill all fields (password min 6 characters)");
       return;
     }
+    if (!signupCity) {
+      pushToast("error", "Select the city you work in");
+      return;
+    }
     setLoading(true);
     try {
-      const user = await signup({ name, email, password, role, phone: phone || undefined });
+      const user = await signup({ name, email, password, role, phone: phone || undefined, location: signupCity });
       if (!user) throw new Error("Signup failed");
       pushToast("success", `Account created. Welcome, ${user.name}!`);
-      window.location.href = `/${user.role}/dashboard`;
+      // New workers have an empty profile — send them to guided setup instead of a blank dashboard
+      window.location.href = user.role === "worker" ? "/worker/onboarding" : `/${user.role}/dashboard`;
     } catch (e: any) {
       pushToast("error", e.message ?? "Signup failed");
     } finally {
@@ -153,6 +164,60 @@ export default function LoginPageClient() {
 
   function handleGoogle() {
     window.location.href = "/api/auth/google";
+  }
+
+  async function handleForgotPassword() {
+    if (!email.trim()) {
+      pushToast("error", "Enter the email you signed up with");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "Could not send reset code");
+      setResetSent(true);
+      setMode("reset");
+      pushToast("success", body.message ?? "Reset code sent");
+    } catch (e: any) {
+      pushToast("error", e.message ?? "Could not send reset code");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResetPassword() {
+    if (!/^\d{6}$/.test(resetCode)) {
+      pushToast("error", "Enter the 6-digit code from your email");
+      return;
+    }
+    if (newPassword.length < 6) {
+      pushToast("error", "New password must be at least 6 characters");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code: resetCode, newPassword }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "Could not reset password");
+      pushToast("success", "Password updated — sign in with your new password");
+      setResetCode("");
+      setNewPassword("");
+      setResetSent(false);
+      setMode("email");
+    } catch (e: any) {
+      pushToast("error", e.message ?? "Could not reset password");
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (!mounted) return null;
@@ -354,6 +419,14 @@ export default function LoginPageClient() {
               <div className="space-y-3">
                 <Input label="Email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
                 <Input label="Password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => { setPassword(""); setMode("forgot"); }}
+                    className="text-xs font-semibold text-orange-700 hover:text-orange-800 underline-offset-2 hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
                 <Button fullWidth size="lg" onClick={handleEmailLogin} loading={loading}>
                   Sign in
                 </Button>
@@ -361,6 +434,69 @@ export default function LoginPageClient() {
               <button onClick={() => setMode("phone")} className="text-sm font-semibold text-orange-700 hover:text-orange-800">
                 ← Back to phone login
               </button>
+            </div>
+          )}
+
+          {mode === "forgot" && (
+            <div className="space-y-6 animate-fade-in">
+              <div>
+                <h2 className="text-2xl font-bold text-navy-900">Reset your password</h2>
+                <p className="text-sm text-gray-800 mt-1.5">
+                  Enter your account email — we&apos;ll send a 6-digit code to set a new password.
+                </p>
+              </div>
+              <div className="space-y-3">
+                <Input label="Email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <Button fullWidth size="lg" onClick={handleForgotPassword} loading={loading}>
+                  Send reset code
+                </Button>
+              </div>
+              <button onClick={() => setMode("email")} className="text-sm font-semibold text-orange-700 hover:text-orange-800">
+                ← Back to email login
+              </button>
+            </div>
+          )}
+
+          {mode === "reset" && (
+            <div className="space-y-6 animate-fade-in">
+              <div>
+                <h2 className="text-2xl font-bold text-navy-900">Enter your code</h2>
+                <p className="text-sm text-gray-800 mt-1.5">
+                  We sent a 6-digit code to <span className="font-semibold">{email}</span>. Enter it below with your new password.
+                </p>
+              </div>
+              <div className="space-y-3">
+                <Input
+                  label="6-digit code"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="123456"
+                  value={resetCode}
+                  onChange={(e) => setResetCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                />
+                <Input
+                  label="New password (min 6 characters)"
+                  type="password"
+                  placeholder="••••••••"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+                <Button fullWidth size="lg" onClick={handleResetPassword} loading={loading}>
+                  Set new password
+                </Button>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <button onClick={() => setMode("forgot")} className="text-orange-700 font-semibold underline-offset-2 hover:underline">
+                  Use a different email
+                </button>
+                <button
+                  className={`font-medium ${resetSent ? "text-gray-500" : "text-orange-700 font-semibold underline-offset-2 hover:underline"}`}
+                  disabled={loading}
+                  onClick={handleForgotPassword}
+                >
+                  Resend code
+                </button>
+              </div>
             </div>
           )}
 
@@ -396,6 +532,27 @@ export default function LoginPageClient() {
                         }`}
                       >
                         {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-gray-700 mb-1.5">
+                    Your city {role === "worker" ? "" : "(optional)"}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {CITIES.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setSignupCity(c.id)}
+                        className={`px-3 py-2 rounded-lg border text-sm font-medium transition text-left ${
+                          signupCity === c.id
+                            ? "border-orange-600 bg-orange-100 text-orange-700"
+                            : "border-gray-300 bg-white text-gray-700 hover:bg-cream-100"
+                        }`}
+                      >
+                        {c.name}
                       </button>
                     ))}
                   </div>

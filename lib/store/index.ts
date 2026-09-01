@@ -41,6 +41,7 @@ export interface AppState {
 
   // Session/UI
   currentUserId: string | null;
+  /** Derived from the signed-in user's persisted location — NOT an independent preference */
   currentLocation: string;
   loaded: boolean;
   loading: boolean;
@@ -64,13 +65,15 @@ export interface AppState {
   pushToast: (type: "success" | "error" | "info", message: string) => void;
   dismissToast: (id: string) => void;
   markOnboarded: () => void;
+  /** Uploads a photo via the server route and sets it as the current user's avatar */
+  uploadAvatar: (file: File) => Promise<void>;
 
   // Notifications
   markNotificationRead: (id: string) => Promise<void>;
   markAllNotificationsRead: (userId: string) => Promise<void>;
 
   // Worker actions
-  updateWorkerProfile: (userId: string, patch: Partial<WorkerProfile> & { name?: string; avatar?: string }) => Promise<void>;
+  updateWorkerProfile: (userId: string, patch: Partial<WorkerProfile> & { name?: string; avatar?: string; location?: string }) => Promise<void>;
   toggleWorkerAvailability: (userId: string) => Promise<void>;
   addSkill: (userId: string, skill: string) => Promise<void>;
   removeSkill: (userId: string, skill: string) => Promise<void>;
@@ -90,7 +93,7 @@ export interface AppState {
   markPaymentReceived: (paymentId: string) => Promise<void>;
 
   // Contractor actions
-  updateContractorProfile: (userId: string, patch: Partial<ContractorProfile> & { name?: string; avatar?: string }) => Promise<void>;
+  updateContractorProfile: (userId: string, patch: Partial<ContractorProfile> & { name?: string; avatar?: string; location?: string }) => Promise<void>;
   createJob: (job: Omit<Job, "id" | "createdAt" | "workersHired" | "status"> & { status?: "active" | "draft" }) => Promise<Job>;
   updateJob: (jobId: string, patch: Partial<Job>) => Promise<void>;
   closeJob: (jobId: string) => Promise<void>;
@@ -146,9 +149,12 @@ export const useStore = create<AppState>()(
         set({ loading: true });
         try {
           const data = await apiGet<any>("/api/bootstrap");
+          const me = data.currentUser;
           set({
             ...data,
-            currentUserId: data.currentUser?.id ?? null,
+            currentUserId: me?.id ?? null,
+            // Single source of truth: the persisted user row's city
+            currentLocation: me?.location ?? "lucknow",
             loaded: true,
             loading: false,
             appliedRealtimeIds: new Set<string>(),
@@ -191,12 +197,46 @@ export const useStore = create<AppState>()(
       },
 
       // ---------------- UI ----------------
-      setLocation: (cityId) => set({ currentLocation: cityId }),
+      /** Changes the user's persisted city (workers/contractors via their profile API); admin stays UI-scoped */
+      setLocation: (cityId) => {
+        const uid = get().currentUserId;
+        const me = get().users.find((u) => u.id === uid);
+        if (!me) return;
+        if (me.role === "worker") {
+          void get().updateWorkerProfile(uid as string, { location: cityId }).then(() => {
+            set({ currentLocation: cityId });
+          });
+        } else if (me.role === "contractor") {
+          void get().updateContractorProfile(uid as string, { location: cityId }).then(() => {
+            set({ currentLocation: cityId });
+          });
+        } else {
+          // Admin has no editable city profile; keep it a pure UI filter
+          set({ currentLocation: cityId });
+        }
+      },
 
       pushToast: (type, message) => {
         const id = `toast_${++toastSeq}`;
         set({ toasts: [...get().toasts, { id, type, message }] });
         setTimeout(() => set({ toasts: get().toasts.filter((t) => t.id !== id) }), 3500);
+      },
+
+      uploadAvatar: async (file) => {
+        const uid = get().currentUserId;
+        const me = get().users.find((u) => u.id === uid);
+        if (!uid || !me) throw new Error("Not signed in");
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/avatar", { method: "POST", body: fd });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !body.url) throw new Error(body.error ?? "Upload failed");
+        if (me.role === "worker") {
+          await get().updateWorkerProfile(uid, { avatar: body.url });
+        } else {
+          await get().updateContractorProfile(uid, { avatar: body.url });
+        }
+        get().pushToast("success", "Profile photo updated");
       },
       dismissToast: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
       markOnboarded: () => set({ dismissedOnboarding: true }),

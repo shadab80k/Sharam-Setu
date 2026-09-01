@@ -9,6 +9,9 @@ export interface SessionUser {
   role: Role;
   name: string;
   email: string;
+  phone: string | null;
+  avatar: string | null;
+  location: string;
   status: "active" | "suspended";
 }
 
@@ -34,13 +37,16 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     const admin = getAdminClient();
     const { data: rows, error: userErr } = await admin.database
       .from("users")
-      .select("id, role, name, email, status")
+      .select("id, role, name, email, phone, avatar, location, status")
       .eq("id", data.user.id)
       .limit(1);
     if (userErr || !rows?.length) return null;
     const u = rows[0];
     if (u.status !== "active") return null;
-    return { id: u.id, role: u.role as Role, name: u.name, email: u.email, status: u.status };
+    return {
+      id: u.id, role: u.role as Role, name: u.name, email: u.email,
+      phone: u.phone, avatar: u.avatar, location: u.location, status: u.status,
+    };
   } catch {
     return null;
   }

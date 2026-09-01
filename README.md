@@ -19,8 +19,8 @@
 
 A full-stack marketplace connecting construction **workers** and **contractors**, built around a portable **verified trust score**:
 
-- **Workers** get a digital identity: verified profile, 100-point trust score, job matches with pay/radius/skill transparency, an income & expense ledger, savings goals, skill assessments, and a Hindi/Hinglish AI assistant.
-- **Contractors** post jobs, review ranked applicants, hire, record wage payments, and leave verified reviews.
+- **Workers** get a digital identity: a 5-step onboarding wizard (profession, experience, wage, city via GPS, languages), 100-point trust score, job matches with pay/radius/skill transparency, an income & expense ledger, savings goals, profession-aware skill assessments, a career roadmap built from live job counts, and a Hindi/Hinglish AI assistant.
+- **Contractors** post jobs, review ranked applicants, hire, record wage payments, leave verified reviews, and maintain an editable company profile — payment reliability shown only when backed by real paid-payment history.
 - **Admins** run the platform: verification approvals, suspensions, fraud & safety signals, escrow audits, and **live analytics computed from real data** — no prototype figures anywhere.
 
 ### Honest scope note

@@ -12,7 +12,11 @@ import { Wallet, TrendingDown, Briefcase, PiggyBank, Sparkles, ArrowRight, MapPi
 import { formatINR, formatINRShort } from "@/lib/utils";
 import { calculateMatchScore } from "@/lib/services/jobMatching";
 import { CITIES } from "@/lib/utils/cities";
-import { useMemo } from "react";
+import { careerSuggestion } from "@/lib/services/professions";
+import { workerNeedsOnboarding, workerChecklist } from "@/lib/services/onboarding";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import { useRouter } from "next/navigation";
+import { useMemo, useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 
@@ -28,15 +32,18 @@ export default function WorkerDashboard() {
   const jobs = useStore((s) => s.jobs.filter((j) => j.status === "active"));
   const payments = useStore((s) => s.payments.filter((p) => p.workerId === currentUserId));
   const expenses = useStore((s) => s.expenses.filter((e) => e.workerId === currentUserId));
+  const verifications = useStore((s) => s.verifications);
+  const assessments = useStore((s) => s.assessments);
   const currentLocation = useStore((s) => s.currentLocation);
   const setLocation = useStore((s) => s.setLocation);
   const toggleWorkerAvailability = useStore((s) => s.toggleWorkerAvailability);
+  const router = useRouter();
   const city = CITIES.find((c) => c.id === currentLocation) || CITIES[0];
 
-  const todaysIncome = payments.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
   const pending = payments.filter((p) => p.status !== "paid").reduce((s, p) => s + p.amount, 0);
+  const totalPaid = payments.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
   const totalExp = expenses.reduce((s, e) => s + e.amount, 0);
-  const savings = todaysIncome - totalExp;
+  const savings = totalPaid - totalExp;
   const recommended = useMemo(() => {
     if (!profile) return [];
     return jobs
@@ -69,7 +76,41 @@ export default function WorkerDashboard() {
     return "Good evening";
   }, []);
 
+  // Real "today" income — only payments actually paid today
+  const todaysIncome = useMemo(() => {
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    const next = new Date(start); next.setDate(next.getDate() + 1);
+    return payments
+      .filter((p) => p.status === "paid" && p.paidDate)
+      .filter((p) => { const t = new Date(p.paidDate!); return t >= start && t < next; })
+      .reduce((s, p) => s + p.amount, 0);
+  }, [payments]);
+  const paidCount = payments.filter((p) => p.status === "paid").length;
+
+  // Onboarding: genuinely new workers get the wizard; everyone else sees a checklist
+  const needsOnboarding = workerNeedsOnboarding(user, profile);
+  const checklist = user && profile
+    ? workerChecklist({ user, profile, verifications, assessments })
+    : [];
+  const checklistDone = checklist.filter((c) => c.done).length;
+
+  // Personalised suggestion — deterministic, derived from the worker's own data
+  const suggestion = useMemo(() => {
+    if (!user || !profile) return null;
+    return careerSuggestion({
+      profession: profile.profession,
+      experienceYears: profile.experienceYears,
+      expectedDailyWage: profile.expectedDailyWage,
+      cityId: user.location,
+    });
+  }, [user, profile]);
+
+  const [cityMenuOpen, setCityMenuOpen] = useState(false);
+
   if (!user || !profile) return null;
+
+  // New worker → guided setup (never shows an empty dashboard)
+  if (needsOnboarding) return <OnboardingRedirect />;
 
   return (
     <div className="space-y-6">
@@ -94,21 +135,56 @@ export default function WorkerDashboard() {
               {profile.availability === "available" ? "Available for work" : "Working / Busy"}
             </Badge>
           </button>
-          <div className="relative group">
+          <div className="relative">
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => {
-                const nextIdx = (CITIES.findIndex((c) => c.id === currentLocation) + 1) % CITIES.length;
-                setLocation(CITIES[nextIdx].id);
-              }}
-              title="Click to change location"
+              onClick={() => setCityMenuOpen((o) => !o)}
+              title="Change your work city"
             >
               <MapPin className="h-3.5 w-3.5 text-orange-600" /> {city.name}
             </Button>
+            {cityMenuOpen && (
+              <div className="absolute right-0 mt-1.5 w-44 rounded-xl border border-gray-200 bg-white shadow-lg p-1.5 z-40">
+                {CITIES.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => { setLocation(c.id); setCityMenuOpen(false); }}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-sm ${c.id === currentLocation ? "bg-orange-50 text-orange-700 font-semibold" : "text-navy-900 hover:bg-cream-50"}`}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Onboarding checklist — only while profile is incomplete */}
+      {checklistDone < checklist.length && (
+        <Card>
+          <CardHeader className="flex items-center justify-between">
+            <div>
+              <CardTitle>Complete your profile</CardTitle>
+              <CardSubtitle>{checklistDone} of {checklist.length} done — a complete profile earns trust and better matches</CardSubtitle>
+            </div>
+            <div className="text-2xl font-bold text-orange-600">{Math.round((checklistDone / checklist.length) * 100)}%</div>
+          </CardHeader>
+          <CardBody>
+            <ProgressBar value={checklistDone} max={checklist.length} color="#F4511E" />
+            <div className="grid sm:grid-cols-2 gap-2 mt-4">
+              {checklist.filter((c) => !c.done).map((c) => (
+                <Link key={c.id} href={c.href} className="flex items-center gap-2.5 p-2.5 rounded-lg border border-gray-200 hover:border-orange-300 hover:bg-orange-50/50 transition text-sm">
+                  <span className="h-5 w-5 rounded-full border-2 border-gray-300 flex items-center justify-center shrink-0" />
+                  <span className="text-navy-900 font-medium">{c.label}</span>
+                  <ArrowRight className="h-3.5 w-3.5 text-gray-400 ml-auto shrink-0" />
+                </Link>
+              ))}
+            </div>
+          </CardBody>
+        </Card>
+      )}
 
       {/* Hero trust panel */}
       <Card className="bg-navy-900 text-white border-navy-900 overflow-hidden relative">
@@ -166,7 +242,7 @@ export default function WorkerDashboard() {
           value={formatINR(todaysIncome)}
           icon={<Wallet className="h-5 w-5" />}
           tone="green"
-          hint={`${payments.filter((p) => p.status === "paid").length} paid payment${payments.filter((p) => p.status === "paid").length === 1 ? "" : "s"}`}
+          hint={`Paid today · ${paidCount} total paid`}
         />
         <MetricCard
           label="Pending Payments"
@@ -239,12 +315,30 @@ export default function WorkerDashboard() {
                 <Sparkles className="h-4 w-4" />
               </div>
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-purple-600 font-semibold">AI suggestion</div>
-                <div className="text-sm font-semibold text-navy-900">Learn a higher-paying skill</div>
+                <div className="text-[10px] uppercase tracking-wider text-purple-600 font-semibold">For you</div>
+                <div className="text-sm font-semibold text-navy-900">
+                  {suggestion?.basis === "wage-gap" ? "Your wage looks low for your trade" : "Grow your income"}
+                </div>
               </div>
             </div>
             <p className="text-sm text-navy-900 mb-4">
-              Tile fitting could increase your earning potential by approximately <span className="font-bold">12–18%</span> in your area based on current demand.
+              {suggestion?.basis === "wage-gap" ? (
+                <>
+                  Workers with your trade and experience in {city.name} are typically paid around{" "}
+                  <span className="font-bold">₹{suggestion.fairWage}/day</span> — you currently expect{" "}
+                  ₹{suggestion.currentWage}/day. Check the wage estimate before accepting a low offer.
+                </>
+              ) : suggestion?.basis === "career-ladder" && suggestion.nextProfession ? (
+                <>
+                  Based on your profile, <span className="font-bold">{suggestion.nextProfession}</span> work in{" "}
+                  {city.name} typically pays around <span className="font-bold">₹{suggestion.nextWage}/day</span>{" "}
+                  {suggestion.nextWeeks ? `(learning usually takes about ${suggestion.nextWeeks} weeks)` : ""}.
+                </>
+              ) : suggestion?.basis === "profile-incomplete" ? (
+                <>Add your trade and expected wage in your profile so we can suggest fair pay for your work.</>
+              ) : (
+                <>Your profile is set up well — keep completing assessments to grow your trust score.</>
+              )}
             </p>
             <Link href="/worker/career">
               <Button variant="ai" size="sm" fullWidth iconRight={<ArrowRight className="h-3.5 w-3.5" />}>
@@ -254,6 +348,19 @@ export default function WorkerDashboard() {
           </CardBody>
         </Card>
       </div>
+    </div>
+  );
+}
+
+/** Small helper: sends genuinely-new workers to the guided setup wizard. */
+function OnboardingRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/worker/onboarding");
+  }, [router]);
+  return (
+    <div className="min-h-[50vh] flex items-center justify-center">
+      <p className="text-sm text-gray-600">Setting up your profile…</p>
     </div>
   );
 }

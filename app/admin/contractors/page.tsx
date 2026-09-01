@@ -33,7 +33,7 @@ export default function AdminContractorsPage() {
     if (filter === "active" && user.status !== "active") return false;
     if (filter === "suspended" && user.status !== "suspended") return false;
     if (filter === "low-trust" && profile.trustScore >= 60) return false;
-    if (filter === "low-reliability" && profile.paymentReliability >= 80) return false;
+    if (filter === "low-reliability" && (profile.paidPayments === 0 || profile.paymentReliability >= 80)) return false;
     return true;
   }), [enriched, search, filter]);
 
@@ -103,15 +103,19 @@ export default function AdminContractorsPage() {
                   </td>
                   <td className="px-4 py-3 text-gray-700">{profile.completedJobs}</td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-16 bg-gray-200 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full ${profile.paymentReliability >= 80 ? "bg-green-600" : profile.paymentReliability >= 60 ? "bg-amber-600" : "bg-red-600"}`}
-                          style={{ width: `${profile.paymentReliability}%` }}
-                        />
+                    {profile.paidPayments > 0 ? (
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 w-16 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${profile.paymentReliability >= 80 ? "bg-green-600" : profile.paymentReliability >= 60 ? "bg-amber-600" : "bg-red-600"}`}
+                            style={{ width: `${profile.paymentReliability}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-700">{profile.paymentReliability}%</span>
                       </div>
-                      <span className="text-xs text-gray-700">{profile.paymentReliability}%</span>
-                    </div>
+                    ) : (
+                      <span className="text-xs text-gray-500 italic">No payment history</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {overdue > 0 ? (
@@ -159,7 +163,11 @@ export default function AdminContractorsPage() {
               </div>
               <div className="p-3 rounded-lg bg-cream-100">
                 <div className="text-xs text-gray-600">Payment reliability</div>
-                <div className="text-base font-bold text-navy-900">{targetProfile.paymentReliability}%</div>
+                <div className="text-base font-bold text-navy-900">
+                  {targetProfile.paidPayments > 0
+                    ? `${targetProfile.paymentReliability}% (${targetProfile.paidPayments} paid)`
+                    : "No payment history"}
+                </div>
               </div>
             </div>
             <div className="flex gap-2 justify-end pt-2 border-t border-gray-200">

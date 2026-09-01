@@ -46,14 +46,18 @@ export async function PATCH(request: NextRequest) {
     (e: unknown) => console.error("trust recalc", e)
   );
 
-  const [p, u] = await Promise.all([
+  const [p, u, paidQ] = await Promise.all([
     admin.database.from("contractor_profiles")
-      .select("user_id, company_name, business_type, location, trust_score, trust_label, rating, payment_reliability, completed_jobs, response_rate, complaint_count")
+      .select("user_id, company_name, business_type, location, trust_score, trust_label, rating, payment_reliability, completed_jobs, complaint_count")
       .eq("user_id", user.id).limit(1),
     admin.database.from("users").select("id, role, name, email, phone, avatar, location, status, created_at").eq("id", user.id).limit(1),
+    // Paid-payment count so the UI can hide reliability when there's no history
+    admin.database.from("payments").select("id").eq("contractor_id", user.id).eq("status", "paid").limit(1000),
   ]);
+  const profile = p.data?.length ? M.mapContractorProfile(p.data[0]) : null;
+  if (profile) profile.paidPayments = paidQ.data?.length ?? 0;
   return NextResponse.json({
-    profile: p.data?.length ? M.mapContractorProfile(p.data[0]) : null,
+    profile,
     user: u.data?.length ? M.mapUser(u.data[0]) : null,
   });
 }

@@ -33,6 +33,7 @@ export function estimateWage(
     "Carpenter": 1.05,
     "Tile Fitter": 1.15,
     "Helper": 0.7,
+    "Site Supervisor": 1.3,
   };
 
   const recommended = Math.round(

@@ -48,6 +48,23 @@ function jar() {
   };
 }
 
+/**
+ * send-otp with cooldown tolerance: the OTP rate limit (a real security
+ * feature) 429s a phone that was messaged within the last minute — repeated
+ * E2E runs hit it. This helper waits out the reported cooldown and retries
+ * instead of failing the suite.
+ */
+async function sendOtpTolerant(j: ReturnType<typeof jar>, phone: string) {
+  let r = await j.call("POST", "/api/auth/send-otp", { phone });
+  const deadline = Date.now() + 90_000;
+  while (r.status === 429 && Date.now() < deadline) {
+    const waitS = Math.min(Number(/(\d+)s/.exec(r.body?.error ?? "")?.[1] ?? 5) + 1, 20);
+    await new Promise((res) => setTimeout(res, waitS * 1000));
+    r = await j.call("POST", "/api/auth/send-otp", { phone });
+  }
+  return r;
+}
+
 async function main() {
   console.log("==================================================");
   console.log("  SHRAMSETU — PRODUCTION E2E VERIFICATION");
@@ -70,7 +87,7 @@ async function main() {
   r = await outsider.call("POST", "/api/auth/login", { email: "worker@shramsetu.local", password: "wrong" });
   assert(r.status === 401, "Wrong password rejected", `status=${r.status}`);
 
-  r = await worker.call("POST", "/api/auth/send-otp", { phone: "9876543210" });
+  r = await sendOtpTolerant(worker, "9876543210");
   assert(r.status === 200 && typeof r.body.devOtp === "string", "OTP send (dev code returned)", JSON.stringify(r.body));
 
   r = await worker.call("POST", "/api/auth/verify-otp", { phone: "9876543210", code: "000000" });
@@ -101,13 +118,20 @@ async function main() {
 
   // bootstrap gives the worker's existing applications; also find a job owned
   // by the demo contractor so the hire-leg can run with proper ownership.
-  r = await worker.call("GET", "/api/bootstrap");
-  const myApps: string[] = r.body.applications.map((a: any) => a.jobId);
+  // The contractor posts a fresh job each run so the suite is idempotent
+  // against a shared database (re-runs never run out of fresh jobs).
   const contractorId = (await contractor.call("GET", "/api/auth/me")).body.user.id;
-  const openJob = r.body.jobs.find(
-    (j: any) => j.status === "active" && j.contractorId === contractorId && !myApps.includes(j.id)
-  );
-  assert(!!openJob, "Fresh active job owned by demo contractor", "none found");
+  const runStamp = Date.now().toString().slice(-6);
+  r = await contractor.call("POST", "/api/jobs", {
+    title: `E2E Wiring Job ${runStamp}`, category: "MEP",
+    description: "End-to-end verification job", location: "lucknow",
+    wagePerDay: 900, startDate: new Date().toISOString(),
+    endDate: new Date(Date.now() + 30 * 86400000).toISOString(),
+    workersNeeded: 2, requiredSkills: ["Wiring"], paymentFrequency: "daily",
+    safetyNotes: "E2E run",
+  });
+  assert(r.status === 201 && r.body.job?.id, "Contractor posts fresh job for this run", JSON.stringify(r.body).slice(0, 150));
+  const openJob = r.body.job;
 
   // apply
   r = await worker.call("POST", "/api/applications", { jobId: openJob.id });
@@ -151,7 +175,7 @@ async function main() {
   // ---------- 5. VERIFICATION WORKFLOW ----------
   section("🛡️ 5. VERIFICATION WORKFLOW");
   const suresh = jar();
-  r = await suresh.call("POST", "/api/auth/send-otp", { phone: "9876500001" });
+  r = await sendOtpTolerant(suresh, "9876500001");
   const code = r.body.devOtp as string;
   r = await suresh.call("POST", "/api/auth/verify-otp", { phone: "9876500001", code });
   assert(r.status === 200 && r.body.user?.name === "Suresh Kumar", "OTP login (existing user)", JSON.stringify(r.body).slice(0, 120));
@@ -186,6 +210,62 @@ async function main() {
 
   r = await contractor.call("POST", "/api/reports", { category: "fraud", severity: "high", description: "contractor should not be able to review own; this is just RBAC probe report" });
   assert(r.status === 201, "Safety report accepted from any role", `status=${r.status}`);
+
+  // ---------- 6.5 NEW USER FLOWS (onboarding, forgot-password, metrics) ----------
+  section("🧪 6.5 NEW USER FLOWS");
+
+  // Signup a fresh worker with a real city → lands on the onboarding defaults marker
+  const stamp = Date.now().toString().slice(-8);
+  const freshEmail = `fresh_${stamp}@shramsetu.local`;
+  r = await outsider.call("POST", "/api/auth/signup", {
+    name: "Fresh Worker", email: freshEmail, password: "secret99", role: "worker",
+    phone: `9${stamp.slice(0, 8)}${stamp.slice(0, 1)}`, location: "kanpur",
+  });
+  assert(r.status === 200 && r.body.user?.role === "worker", "Worker signup with city", JSON.stringify(r.body).slice(0, 120));
+
+  r = await outsider.call("GET", "/api/bootstrap");
+  const freshProfile = r.body.workerProfiles.find((p: any) => p.userId === r.body.currentUser.id);
+  assert(
+    freshProfile && freshProfile.profession === "Helper" && freshProfile.expectedDailyWage === 0,
+    "Fresh worker has onboarding-defaults marker (Helper, ₹0)",
+    `prof=${freshProfile?.profession} wage=${freshProfile?.expectedDailyWage}`
+  );
+  assert(r.body.currentUser.location === "kanpur", "Signup city persisted (no default Lucknow)", r.body.currentUser.location);
+
+  // Completing the profile via the existing PATCH clears the marker
+  r = await outsider.call("PATCH", "/api/worker/profile", {
+    profession: "Electrician", experienceYears: 4, expectedDailyWage: 950, skills: ["Wiring"], bio: "Certified electrician from Kanpur.",
+  });
+  assert(r.status === 200 && r.body.profile?.profession === "Electrician", "Onboarding completion via profile PATCH", JSON.stringify(r.body.profile?.profession));
+  r = await outsider.call("GET", "/api/bootstrap");
+  const doneProfile = r.body.workerProfiles.find((p: any) => p.userId === r.body.currentUser.id);
+  assert(doneProfile && doneProfile.profession === "Electrician" && doneProfile.expectedDailyWage === 950, "Marker cleared after onboarding", `prof=${doneProfile?.profession}`);
+
+  // Forgot-password: unknown email must not reveal account existence
+  r = await jar().call("POST", "/api/auth/forgot-password", { email: `nobody_${stamp}@shramsetu.local` });
+  assert(r.status === 200 && /sent/i.test(r.body.message ?? ""), "Forgot-password neutral response for unknown email", JSON.stringify(r.body).slice(0, 100));
+
+  r = await jar().call("POST", "/api/auth/forgot-password", { email: "not-an-email" });
+  assert(r.status === 400, "Forgot-password rejects invalid email", `status=${r.status}`);
+
+  r = await jar().call("POST", "/api/auth/reset-password", { email: freshEmail, code: "000000", newPassword: "newpass123" });
+  assert(r.status === 400, "Reset-password rejects wrong code", `status=${r.status}`);
+
+  // Contractor metrics derived from real data (paidPayments gate)
+  // PATCH with no fields is the read-back path (all fields optional)
+  r = await contractor.call("PATCH", "/api/contractor/profile", {});
+  assert(
+    r.status === 200 && typeof r.body.profile?.paidPayments === "number",
+    "Contractor profile returns paidPayments count",
+    `paid=${r.body.profile?.paidPayments} reliability=${r.body.profile?.paymentReliability}`
+  );
+  assert(r.body.profile?.responseRate === undefined, "Fake responseRate removed from API", JSON.stringify(r.body.profile ?? {}).slice(0, 120));
+
+  // Avatar upload security: no file → clean 400, outsider blocked
+  r = await worker.call("POST", "/api/avatar");
+  assert(r.status === 400, "Avatar upload without file rejected", `status=${r.status}`);
+  r = await jar().call("POST", "/api/avatar", {});
+  assert(r.status === 401, "Avatar upload requires session", `status=${r.status}`);
 
   // ---------- 7. AI ASSISTANT ----------
   section("🤖 7. AI ASSISTANT");

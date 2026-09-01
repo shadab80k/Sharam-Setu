@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Bell, Briefcase, Wallet, Shield, AlertTriangle, Sparkles, CheckCircle2, Inbox } from "lucide-react";
 import { timeAgo, formatINR } from "@/lib/utils";
+import { PushOptIn } from "@/components/features/PushOptIn";
 import { useState, useMemo } from "react";
 import Link from "next/link";
 
@@ -63,6 +64,7 @@ export default function WorkerNotificationsPage() {
             Mark all as read
           </Button>
         )}
+        <PushOptIn />
       </div>
 
       <Tabs

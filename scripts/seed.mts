@@ -172,7 +172,7 @@ async function main() {
         languages: pickN(["Hindi","English","Bhojpuri","Punjabi","Marwari"], rand(1, 2)),
         skills: pickN(prof.skills, Math.min(prof.skills.length, rand(1, 3))),
         rating: Math.round((3.5 + Math.random() * 1.5) * 10) / 10,
-        completed_jobs: rand(2, 80),
+        // completed_jobs is derived from real completed applications after inserts
         certifications: pickN(["Safety Training","Skill Certification","First Aid","Equipment Operation"], rand(0, 3)),
       };
     })
@@ -182,8 +182,7 @@ async function main() {
       user_id: u.authId, company_name: u.name,
       business_type: pick(["Residential","Commercial","Infrastructure","Renovation"]),
       location: u.location, rating: Math.round((3.5 + Math.random() * 1.5) * 10) / 10,
-      payment_reliability: rand(70, 99), completed_jobs: rand(10, 200),
-      response_rate: rand(70, 99),
+      // metrics derived from real jobs/payments by recalc_contractor_metrics_all() below
     }))
   );
 
@@ -480,6 +479,12 @@ async function main() {
     else recalced++;
   }
   console.log(`  → ${recalced}/${users.length} trust scores computed`);
+
+  // ============ 14. DERIVED CONTRACTOR METRICS (real jobs/payments) ============
+  console.log("\n1️⃣4️⃣  Deriving contractor metrics from real jobs & payments...");
+  const { error: metricsErr } = await admin.database.rpc("recalc_contractor_metrics_all");
+  if (metricsErr) console.error(`  ✗ contractor metrics: ${metricsErr.message}`);
+  else console.log("  → completed_jobs + payment_reliability derived from real data");
 
   console.log("\n✅ SEED COMPLETE");
   console.log("Demo accounts (password: demo1234):");

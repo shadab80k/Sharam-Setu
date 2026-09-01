@@ -27,11 +27,29 @@ export async function GET() {
   const [usersQ, workerQ, contractorQ] = await Promise.all([
     admin.database.from("users").select("id, role, name, email, phone, avatar, location, status, created_at").limit(500),
     admin.database.from("worker_profiles").select("user_id, profession, experience_years, expected_daily_wage, availability, bio, profile_completion, preferred_radius_km, languages, skills, trust_score, trust_label, rating, completed_jobs, certifications").limit(500),
-    admin.database.from("contractor_profiles").select("user_id, company_name, business_type, location, trust_score, trust_label, rating, payment_reliability, completed_jobs, response_rate, complaint_count").limit(500),
+    admin.database.from("contractor_profiles").select("user_id, company_name, business_type, location, trust_score, trust_label, rating, payment_reliability, completed_jobs, complaint_count").limit(500),
   ]);
   const users = (usersQ.data ?? []).map(M.mapUser);
   const workerProfiles = (workerQ.data ?? []).map(M.mapWorkerProfile);
-  const contractorProfiles = (contractorQ.data ?? []).map(M.mapContractorProfile);
+  const contractorProfiles = (contractorQ.data ?? []).map((r: any) => ({
+    ...M.mapContractorProfile(r),
+  }));
+
+
+  // Paid-payment counts per contractor — powers honest "reliability" display
+  // (hide it when a contractor has no paid history instead of showing a number)
+  const paidCountsQ = await admin.database
+    .from("payments")
+    .select("contractor_id")
+    .eq("status", "paid")
+    .limit(1000);
+  const paidByContractor = new Map<string, number>();
+  for (const row of paidCountsQ.data ?? []) {
+    paidByContractor.set(row.contractor_id, (paidByContractor.get(row.contractor_id) ?? 0) + 1);
+  }
+  for (const cp of contractorProfiles) {
+    cp.paidPayments = paidByContractor.get(cp.userId) ?? 0;
+  }
 
   // ---- Jobs: non-draft for everyone; contractor also gets own drafts ----
   const jobsQ = await admin.database

@@ -46,6 +46,14 @@ export async function PATCH(request: NextRequest, ctx: { params: { id: string } 
     return NextResponse.json({ error: msg || "Transition failed" }, { status: 400 });
   }
 
+  // A new paid payment changes the contractor's on-time % — keep it derived-live
+  if (parse.data.action === "mark-paid") {
+    await admin.database.rpc("recalc_contractor_metrics", { p_contractor_id: pay.contractor_id }).then(
+      () => undefined,
+      (e: unknown) => console.error("contractor metrics recalc", e)
+    );
+  }
+
   const { data: updated } = await admin.database
     .from("payments")
     .select("id, job_id, worker_id, contractor_id, amount, due_date, paid_date, status, method, notes")
