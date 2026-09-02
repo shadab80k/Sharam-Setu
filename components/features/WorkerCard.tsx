@@ -5,9 +5,8 @@ import { Avatar } from "../ui/Avatar";
 import { TrustRing } from "../ui/TrustRing";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
-import { MapPin, Star, CheckCircle2 } from "lucide-react";
+import { MapPin, Star, CheckCircle2, CalendarX } from "lucide-react";
 import { useStore } from "@/lib/store";
-import Link from "next/link";
 
 interface WorkerCardProps {
   workerId: string;
@@ -15,28 +14,42 @@ interface WorkerCardProps {
   matchReasons?: string[];
   onAction?: (action: "shortlist" | "contact" | "hire" | "view") => void;
   actions?: { shortlist?: boolean; hire?: boolean; view?: boolean };
+  /** When true, Shortlist/Hire are disabled (e.g. contractor has no open jobs). */
+  disabled?: boolean;
 }
 
-export function WorkerCard({ workerId, matchScore, matchReasons, onAction, actions }: WorkerCardProps) {
+export function WorkerCard({ workerId, matchScore, matchReasons, onAction, actions, disabled }: WorkerCardProps) {
   const worker = useStore((s) => s.users.find((u) => u.id === workerId));
   const profile = useStore((s) => s.workerProfiles.find((p) => p.userId === workerId));
   if (!worker || !profile) return null;
 
   const show = { shortlist: true, hire: true, view: true, ...(actions ?? {}) };
+  const unavailable = profile.availability === "unavailable";
+  const ctaBlocked = disabled || unavailable;
+  const ctaTitle = disabled
+    ? "Post a job with open positions first"
+    : unavailable
+      ? "This worker is currently unavailable"
+      : undefined;
 
   return (
-    <Card className="p-5 hover:shadow-elevated transition">
+    <Card className="p-5 hover:shadow-elevated transition flex flex-col">
       <div className="flex items-start gap-3">
         <Avatar src={worker.avatar} name={worker.name} size={48} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-sm font-semibold text-navy-900">{worker.name}</h3>
             {profile.profileCompletion > 80 && <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />}
+            {unavailable && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-red-600">
+                <CalendarX className="h-3 w-3" /> Unavailable
+              </span>
+            )}
           </div>
           <p className="text-xs text-gray-700 mt-0.5">
             {profile.profession} · {profile.experienceYears} yrs
           </p>
-          <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-600">
+          <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-600 flex-wrap">
             <span className="flex items-center gap-1">
               <MapPin className="h-3 w-3" /> {worker.location}
             </span>
@@ -76,25 +89,39 @@ export function WorkerCard({ workerId, matchScore, matchReasons, onAction, actio
         </div>
       )}
 
-      <div className="mt-3 flex flex-wrap gap-1">
+      <div className="mt-3 flex flex-wrap gap-1.5">
         {profile.skills.slice(0, 3).map((s) => (
           <Badge key={s} variant="default">{s}</Badge>
         ))}
       </div>
 
-      <div className="mt-4 flex items-center gap-1.5">
+      <div className="mt-4 flex items-stretch gap-1.5 pt-0 mt-auto">
         {show.view && (
           <Button variant="secondary" size="sm" fullWidth onClick={() => onAction?.("view")}>
             View
           </Button>
         )}
         {show.shortlist && (
-          <Button variant="secondary" size="sm" fullWidth onClick={() => onAction?.("shortlist")}>
+          <Button
+            variant="secondary"
+            size="sm"
+            fullWidth
+            disabled={ctaBlocked}
+            title={ctaTitle}
+            onClick={() => onAction?.("shortlist")}
+          >
             Shortlist
           </Button>
         )}
         {show.hire && (
-          <Button variant="primary" size="sm" fullWidth onClick={() => onAction?.("hire")}>
+          <Button
+            variant="primary"
+            size="sm"
+            fullWidth
+            disabled={ctaBlocked}
+            title={ctaTitle}
+            onClick={() => onAction?.("hire")}
+          >
             Hire
           </Button>
         )}

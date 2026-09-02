@@ -64,8 +64,10 @@ export async function POST(request: NextRequest) {
   const dup = await admin.database
     .from("applications").select("id, status").eq("job_id", jobId).eq("worker_id", workerId).limit(1);
   if (dup.data?.length) {
-    const label = dup.data[0].status === "shortlisted" ? "already shortlisted" : "already has an application";
-    return NextResponse.json({ error: `This worker is ${label} for that job` }, { status: 409 });
+    const already = dup.data[0].status === "shortlisted"
+      ? "already shortlisted for this job"
+      : "already applied to this job";
+    return NextResponse.json({ error: `This worker ${already}` }, { status: 409 });
   }
 
   const contractor = contractorQ.data?.length ? M.mapContractorProfile(contractorQ.data[0]) : undefined;

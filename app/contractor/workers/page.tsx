@@ -6,7 +6,8 @@ import { Input, Select } from "@/components/ui/Input";
 import { WorkerCard } from "@/components/features/WorkerCard";
 import { WorkerProfileModal } from "@/components/features/WorkerProfileModal";
 import { Button } from "@/components/ui/Button";
-import { Search, Briefcase } from "lucide-react";
+import { Search, Briefcase, PlusCircle } from "lucide-react";
+import Link from "next/link";
 import { useState, useMemo } from "react";
 
 export default function FindWorkersPage() {
@@ -15,11 +16,12 @@ export default function FindWorkersPage() {
   const jobs = useStore((s) => s.jobs);
   const currentUserId = useStore((s) => s.currentUserId);
   const inviteWorker = useStore((s) => s.inviteWorker);
-  const pushToast = useStore((s) => s.pushToast);
   const [search, setSearch] = useState("");
   const [profession, setProfession] = useState("all");
   const [minTrust, setMinTrust] = useState(0);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // One active surface at a time: "profile" (view) or "invite" (job picker).
+  const [viewId, setViewId] = useState<string | null>(null);
   const [inviteTargetId, setInviteTargetId] = useState<string | null>(null);
   const [inviteJobId, setInviteJobId] = useState("");
   const [inviting, setInviting] = useState(false);
@@ -49,13 +51,15 @@ export default function FindWorkersPage() {
     [jobs, currentUserId]
   );
 
-  const selected = enriched.find((e) => e.worker.userId === selectedId) ?? null;
+  const viewing = enriched.find((e) => e.worker.userId === viewId) ?? null;
   const inviteTarget = enriched.find((e) => e.worker.userId === inviteTargetId) ?? null;
 
   const alreadyApplied = (workerId: string, jobId: string) =>
     useStore.getState().applications.some((a) => a.workerId === workerId && a.jobId === jobId);
 
+  // Opening the invite picker replaces any open profile modal — never stacks two dialogs.
   const openInvite = (workerId: string) => {
+    setViewId(null);
     setInviteTargetId(workerId);
     setInviteJobId(myOpenJobs.find((j) => !alreadyApplied(workerId, j.id))?.id ?? "");
   };
@@ -119,48 +123,46 @@ export default function FindWorkersPage() {
       </Card>
 
       {myOpenJobs.length === 0 && (
-        <div className="p-3 rounded-lg bg-amber-50 border border-amber-100 text-sm text-amber-800">
-          You have no active jobs with open positions — post a job first to shortlist or hire workers.
+        <div className="p-3.5 rounded-lg bg-amber-50 border border-amber-100 text-sm text-amber-800 flex items-center justify-between gap-3 flex-wrap">
+          <span>
+            You have no active jobs with open positions. Post a job first, then you can shortlist workers onto it.
+          </span>
+          <Link href="/contractor/jobs/new">
+            <Button variant="primary" size="sm" iconLeft={<PlusCircle className="h-4 w-4" />}>
+              Post a job
+            </Button>
+          </Link>
         </div>
       )}
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map(({ worker, user }) => (
+        {filtered.map(({ worker }) => (
           <WorkerCard
             key={worker.userId}
             workerId={worker.userId}
+            disabled={myOpenJobs.length === 0}
             onAction={(a) => {
-              if (a === "view") setSelectedId(worker.userId);
+              if (a === "view") setViewId(worker.userId);
               if (a === "shortlist" || a === "hire") openInvite(worker.userId);
             }}
           />
         ))}
       </div>
 
-      {selected && (
+      {/* Profile view (only when NOT inviting) */}
+      {viewing && !inviteTargetId && (
         <WorkerProfileModal
           open
-          onClose={() => setSelectedId(null)}
-          worker={selected.worker}
-          user={selected.user}
-          onShortlist={() => openInvite(selected.worker.userId)}
-          onHire={() => openInvite(selected.worker.userId)}
-        />
-      )}
-
-      {inviteTarget && (
-        <WorkerProfileModal
-          open
-          onClose={() => setInviteTargetId(null)}
-          worker={inviteTarget.worker}
-          user={inviteTarget.user}
-          onShortlist={() => openInvite(inviteTarget.worker.userId)}
-          onHire={() => openInvite(inviteTarget.worker.userId)}
+          onClose={() => setViewId(null)}
+          worker={viewing.worker}
+          user={viewing.user}
+          onShortlist={() => openInvite(viewing.worker.userId)}
+          onHire={() => openInvite(viewing.worker.userId)}
         />
       )}
 
       {/* Job picker for inviting this worker */}
-      {inviteTarget && myOpenJobs.length > 0 && (
+      {inviteTarget && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-navy-900/50 p-4"
           onClick={() => setInviteTargetId(null)}
@@ -171,37 +173,45 @@ export default function FindWorkersPage() {
           >
             <div>
               <h3 className="text-lg font-bold text-navy-900 flex items-center gap-2">
-                <Briefcase className="h-5 w-5 text-orange-600" /> Invite {inviteTarget.user.name}
+                <Briefcase className="h-5 w-5 text-orange-600 shrink-0" /> Shortlist {inviteTarget.user.name} for a job
               </h3>
               <p className="text-xs text-gray-600 mt-1">
-                Pick one of your active jobs — we&apos;ll shortlist {inviteTarget.user.name} for it and notify them instantly.
+                Pick one of your active jobs below — we&apos;ll shortlist {inviteTarget.user.name} and notify them instantly. They can confirm or withdraw.
               </p>
             </div>
-            <Select
-              label="Your active jobs"
-              value={inviteJobId}
-              onChange={(e) => setInviteJobId(e.target.value)}
-              options={[
-                { value: "", label: "Choose a job…" },
-                ...myOpenJobs.map((j) => ({
-                  value: j.id,
-                  label: `${j.title} — ₹${j.wagePerDay}/day (${j.workersHired}/${j.workersNeeded} filled)`,
-                })),
-              ]}
-            />
+            {myOpenJobs.length === 0 ? (
+              <p className="text-sm text-gray-600">
+                You have no active jobs with open positions. Post a job first to shortlist workers.
+              </p>
+            ) : (
+              <Select
+                label="Your active jobs"
+                value={inviteJobId}
+                onChange={(e) => setInviteJobId(e.target.value)}
+                options={[
+                  { value: "", label: "Choose a job…" },
+                  ...myOpenJobs.map((j) => ({
+                    value: j.id,
+                    label: `${j.title} — ₹${j.wagePerDay}/day (${j.workersHired}/${j.workersNeeded} filled)`,
+                  })),
+                ]}
+              />
+            )}
             <div className="flex gap-3 justify-end">
               <Button variant="secondary" size="md" onClick={() => setInviteTargetId(null)}>
                 Cancel
               </Button>
-              <Button
-                variant="primary"
-                size="md"
-                disabled={!inviteJobId || inviting}
-                loading={inviting}
-                onClick={confirmInvite}
-              >
-                Send Invite
-              </Button>
+              {myOpenJobs.length > 0 && (
+                <Button
+                  variant="primary"
+                  size="md"
+                  disabled={!inviteJobId || inviting}
+                  loading={inviting}
+                  onClick={confirmInvite}
+                >
+                  Send Invite
+                </Button>
+              )}
             </div>
           </div>
         </div>
