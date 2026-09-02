@@ -77,6 +77,21 @@ export default function WorkerTrustPage() {
     fraudSignals,
   });
 
+  // Net score change this calendar month, derived from the server-authored
+  // trust_events audit trail (points = score AFTER each change).
+  const monthDelta = (() => {
+    const snaps = events
+      .filter((e) => /score updated/i.test(e.reason))
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    if (snaps.length === 0) return null;
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const before = snaps.filter((e) => new Date(e.createdAt) < monthStart);
+    if (before.length === 0) return null; // history starts this month — no baseline to compare
+    return result.score - before[before.length - 1].points;
+  })();
+
   // Real score trend from the server-authored trust_events audit trail.
   // Recalculation events record the score after the change in `points`
   // ("Score updated from X to Y"); the last point is the live score.
@@ -171,7 +186,14 @@ export default function WorkerTrustPage() {
               Your trust score is your professional passport. It grows with every verified job, completed assessment, and positive review.
             </p>
             <div className="flex items-center gap-3 mt-4">
-              <Badge variant="green" iconLeft={<ArrowUpRight className="h-3 w-3" />}>+6 this month</Badge>
+              {monthDelta !== null && monthDelta !== 0 && (
+                <Badge
+                  variant={monthDelta > 0 ? "green" : "red"}
+                  iconLeft={<ArrowUpRight className={`h-3 w-3 ${monthDelta < 0 ? "rotate-90" : ""}`} />}
+                >
+                  {monthDelta > 0 ? `+${monthDelta}` : monthDelta} this month
+                </Badge>
+              )}
               <Badge variant="blue">{result.label}</Badge>
             </div>
           </div>

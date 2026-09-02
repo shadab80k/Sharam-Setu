@@ -5,7 +5,7 @@ import { Card, CardBody, CardHeader, CardTitle, CardSubtitle } from "@/component
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
-import { Star, TrendingUp } from "lucide-react";
+import { Star } from "lucide-react";
 import { Input, Textarea } from "@/components/ui/Input";
 import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
@@ -17,6 +17,7 @@ export default function ReviewsPage() {
   const myApps = useStore((s) => s.applications.filter((a) => myJobs.some((j) => j.id === a.jobId) && a.status === "completed"));
   const users = useStore((s) => s.users);
   const reviews = useStore((s) => s.reviews);
+  const profile = useStore((s) => s.contractorProfiles.find((p) => p.userId === userId));
   const reviewWorker = useStore((s) => s.reviewWorker);
 
   const [open, setOpen] = useState<string | null>(null);
@@ -24,6 +25,17 @@ export default function ReviewsPage() {
 
   const target = myApps.find((a) => a.id === open);
   const myReviews = reviews.filter((r) => r.reviewerId === userId);
+  const receivedReviews = reviews.filter((r) => r.revieweeId === userId);
+
+  // Completed applications that this contractor hasn't reviewed yet
+  const pendingReview = myApps.filter(
+    (a) => !reviews.some((r) => r.reviewerId === userId && r.jobId === a.jobId && r.revieweeId === a.workerId)
+  );
+
+  const avgGiven = myReviews.length
+    ? myReviews.reduce((s, r) => s + r.rating, 0) / myReviews.length
+    : 0;
+  const myRating = profile?.rating ?? 0;
 
   const ratingDist = [5, 4, 3, 2, 1].map((star) => ({
     star,
@@ -39,21 +51,40 @@ export default function ReviewsPage() {
 
       <div className="grid lg:grid-cols-3 gap-5">
         <Card>
-          <CardHeader><CardTitle>Average rating</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Your worker rating</CardTitle>
+            <CardSubtitle>What workers say about you as an employer</CardSubtitle>
+          </CardHeader>
           <CardBody className="text-center">
-            <div className="text-5xl font-bold text-navy-900">4.7</div>
-            <div className="flex items-center justify-center gap-0.5 mt-2 text-amber-600">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <Star key={i} className="h-4 w-4 fill-current" />
-              ))}
-            </div>
-            <div className="text-xs text-gray-600 mt-2">From {myReviews.length} reviews</div>
-            <Badge variant="green" className="mt-3" iconLeft={<TrendingUp className="h-3 w-3" />}>+0.2 this month</Badge>
+            {receivedReviews.length > 0 ? (
+              <>
+                <div className="text-5xl font-bold text-navy-900">{myRating.toFixed(1)}</div>
+                <div className="flex items-center justify-center gap-0.5 mt-2 text-amber-600">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Star key={i} className={`h-4 w-4 ${i <= Math.round(myRating) ? "fill-current" : ""}`} />
+                  ))}
+                </div>
+                <div className="text-xs text-gray-600 mt-2">From {receivedReviews.length} reviews by workers</div>
+              </>
+            ) : (
+              <>
+                <div className="text-3xl font-bold text-navy-900">—</div>
+                <div className="text-xs text-gray-600 mt-2">No worker reviews yet — they appear after completed jobs.</div>
+              </>
+            )}
+            {myReviews.length > 0 && (
+              <div className="text-xs text-gray-500 mt-3">
+                You give an average of {avgGiven.toFixed(1)}★ across {myReviews.length} reviews
+              </div>
+            )}
           </CardBody>
         </Card>
 
-        <Card className="lg:col-span-2">
-          <CardHeader><CardTitle>Rating distribution</CardTitle></CardHeader>
+        <Card>
+          <CardHeader>
+            <CardTitle>Rating distribution</CardTitle>
+            <CardSubtitle>Across the {myReviews.length} reviews you&apos;ve given</CardSubtitle>
+          </CardHeader>
           <CardBody className="space-y-2">
             {ratingDist.map((d) => (
               <div key={d.star} className="flex items-center gap-3">
@@ -78,10 +109,12 @@ export default function ReviewsPage() {
           <CardSubtitle>Completed jobs awaiting your review</CardSubtitle>
         </CardHeader>
         <CardBody className="space-y-2">
-          {myApps.length === 0 ? (
-            <p className="text-sm text-gray-600 text-center py-4">No completed jobs pending review.</p>
+          {pendingReview.length === 0 ? (
+            <p className="text-sm text-gray-600 text-center py-4">
+              {myApps.length > 0 ? "All completed jobs are already reviewed." : "No completed jobs pending review."}
+            </p>
           ) : (
-            myApps.map((a) => {
+            pendingReview.map((a) => {
               const worker = users.find((u) => u.id === a.workerId);
               return (
                 <div key={a.id} className="flex items-center justify-between p-3 rounded-lg border border-gray-200">

@@ -25,14 +25,22 @@ import { formatINRShort } from "@/lib/utils";
 import { calculateMatchScore } from "@/lib/services/jobMatching";
 import { CITIES } from "@/lib/utils/cities";
 import { useMemo, useState } from "react";
+import type { Job, User, WorkerProfile } from "@/lib/types";
 
 const PIPELINE = [
-  { key: "new", label: "New", statuses: ["applied", "viewed"] },
+  { key: "new", label: "New", statuses: ["applied"] },
   { key: "shortlisted", label: "Shortlisted", statuses: ["shortlisted"] },
-  { key: "selected", label: "Selected", statuses: ["selected", "interview"] },
-  { key: "working", label: "Working", statuses: ["selected"] },
+  { key: "selected", label: "On the job", statuses: ["selected"] },
   { key: "completed", label: "Completed", statuses: ["completed"] },
+  { key: "rejected", label: "Rejected", statuses: ["rejected"] },
 ] as const;
+
+type Recommended = {
+  worker: WorkerProfile;
+  user: User;
+  job: Job;
+  match: ReturnType<typeof calculateMatchScore>;
+};
 
 export default function ContractorDashboard() {
   const userId = useStore((s) => s.currentUserId) || "";
@@ -42,11 +50,14 @@ export default function ContractorDashboard() {
   const apps = useStore((s) => s.applications);
   const workers = useStore((s) => s.workerProfiles);
   const users = useStore((s) => s.users);
+  const verifications = useStore((s) => s.verifications);
+  const inviteWorker = useStore((s) => s.inviteWorker);
   const payments = useStore((s) => s.payments.filter((p) => p.contractorId === userId));
   const currentLocation = useStore((s) => s.currentLocation);
   const city = CITIES.find((c) => c.id === currentLocation) || CITIES[0];
 
-  const [selectedWorkerMatch, setSelectedWorkerMatch] = useState<any | null>(null);
+  const [selectedWorkerMatch, setSelectedWorkerMatch] = useState<Recommended | null>(null);
+  const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
 
   const activeJobs = jobs.filter((j) => j.status === "active").length;
   const applicants = apps.filter((a) => jobs.some((j) => j.id === a.jobId)).length;
@@ -55,19 +66,43 @@ export default function ContractorDashboard() {
 
   const myApps = apps.filter((a) => jobs.some((j) => j.id === a.jobId));
 
-  const recommended = useMemo(() => {
+  // Best match for each worker across ALL active jobs with open positions
+  const recommended = useMemo<Recommended[]>(() => {
+    const openJobs = jobs.filter((j) => j.status === "active" && j.workersHired < j.workersNeeded);
+    if (openJobs.length === 0) return [];
     return workers
+      .filter((w) => w.availability !== "unavailable")
       .map((w) => {
-        const job = jobs[0];
-        if (!job) return null;
-        const match = calculateMatchScore(job, w, profile, city);
-        const u = users.find((x) => x.id === w.userId);
-        return { worker: w, user: u, match };
+        let best: Recommended | null = null;
+        for (const job of openJobs) {
+          if (apps.some((a) => a.jobId === job.id && a.workerId === w.userId)) continue;
+          const match = calculateMatchScore(job, w, profile, city);
+          if (!best || match.matchScore > best.match.matchScore) {
+            const u = users.find((x) => x.id === w.userId);
+            if (!u) continue;
+            best = { worker: w, user: u, job, match };
+          }
+        }
+        return best;
       })
-      .filter(Boolean)
-      .sort((a, b) => (b?.match.matchScore ?? 0) - (a?.match.matchScore ?? 0))
-      .slice(0, 4) as any[];
-  }, [workers, jobs, profile, city, users]);
+      .filter((r): r is Recommended => r !== null)
+      .sort((a, b) => b.match.matchScore - a.match.matchScore)
+      .slice(0, 4);
+  }, [workers, jobs, apps, profile, city, users]);
+
+  const isIdVerified = (workerId: string) =>
+    verifications.some((v) => v.userId === workerId && v.type === "identity" && v.status === "verified");
+  const contractorIdVerified = isIdVerified(userId);
+
+  const handleShortlist = async (r: Recommended) => {
+    try {
+      await inviteWorker(r.job.id, r.worker.userId);
+      setInvitedIds((prev) => new Set(prev).add(r.worker.userId));
+      setSelectedWorkerMatch(null);
+    } catch {
+      // store already showed the toast
+    }
+  };
 
   if (!user || !profile) return null;
 
@@ -125,6 +160,7 @@ export default function ContractorDashboard() {
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             {PIPELINE.map((p) => {
               const count = myApps.filter((a) => (p.statuses as readonly string[]).includes(a.status)).length;
+              const width = myApps.length > 0 ? Math.round((count / myApps.length) * 100) : 0;
               return (
                 <div key={p.key} className="p-3 rounded-lg border border-gray-200 bg-cream-50">
                   <div className="text-[10px] uppercase tracking-wider text-gray-600 font-semibold">{p.label}</div>
@@ -132,7 +168,7 @@ export default function ContractorDashboard() {
                   <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-orange-600"
-                      style={{ width: `${Math.min(100, count * 25)}%` }}
+                      style={{ width: `${width}%` }}
                     />
                   </div>
                 </div>
@@ -169,24 +205,30 @@ export default function ContractorDashboard() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <div className="text-sm font-semibold text-navy-900">{r.user.name}</div>
-                      <Badge variant="green" size="sm" iconLeft={<CheckCircle2 className="h-2.5 w-2.5" />}>
-                        Verified
-                      </Badge>
+                      {isIdVerified(r.worker.userId) ? (
+                        <Badge variant="green" size="sm" iconLeft={<CheckCircle2 className="h-2.5 w-2.5" />}>
+                          ID Verified
+                        </Badge>
+                      ) : null}
                     </div>
                     <div className="text-xs text-gray-600 mt-0.5">
                       {r.worker.profession} · {r.worker.experienceYears} yrs · {r.worker.rating.toFixed(1)}★
                     </div>
-                    <div className="text-xs text-gray-700 mt-1">
-                      Trust {r.worker.trustScore}/100 · ₹{r.worker.expectedDailyWage}/day
+                    <div className="text-xs text-gray-700 mt-1 truncate">
+                      For <span className="font-medium">{r.job.title}</span> · Trust {r.worker.trustScore}/100 · ₹{r.worker.expectedDailyWage}/day
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="text-xl font-bold text-orange-600">{r.match.matchScore}%</div>
                     <div className="text-[10px] text-gray-500 uppercase tracking-wider">Match</div>
                   </div>
-                  <Button size="sm" onClick={() => setSelectedWorkerMatch(r)}>
-                    View
-                  </Button>
+                  {invitedIds.has(r.worker.userId) ? (
+                    <Badge variant="orange" size="sm">Invited</Badge>
+                  ) : (
+                    <Button size="sm" onClick={() => handleShortlist(r)}>
+                      Shortlist
+                    </Button>
+                  )}
                 </div>
               ))
             )}
@@ -204,8 +246,8 @@ export default function ContractorDashboard() {
                   Trust & Reputation
                 </span>
               </div>
-              <Badge variant="green" size="sm">
-                GST Verified
+              <Badge variant={contractorIdVerified ? "green" : "gray"} size="sm">
+                {contractorIdVerified ? "ID Verified" : "Trust-based"}
               </Badge>
             </div>
 
@@ -270,15 +312,16 @@ export default function ContractorDashboard() {
         </Card>
       </div>
 
-      {/* Interactive Worker Profile Modal */}
+      {/* Interactive Worker Profile Modal — shortlist invites the worker to the best-matching job */}
       {selectedWorkerMatch && (
         <WorkerProfileModal
-          open={!!selectedWorkerMatch}
+          open
           onClose={() => setSelectedWorkerMatch(null)}
           worker={selectedWorkerMatch.worker}
           user={selectedWorkerMatch.user}
-          matchScore={selectedWorkerMatch.match?.matchScore}
-          matchReasons={selectedWorkerMatch.match?.reasons}
+          matchScore={selectedWorkerMatch.match.matchScore}
+          matchReasons={selectedWorkerMatch.match.reasons}
+          onShortlist={() => void handleShortlist(selectedWorkerMatch)}
         />
       )}
     </div>

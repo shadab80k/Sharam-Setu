@@ -191,7 +191,15 @@ export default function WorkerProfilePage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-2xl font-bold text-navy-900">{user.name}</h2>
-                <Badge variant="green" iconLeft={<CheckCircle2 className="h-3 w-3" />}>Verified worker</Badge>
+                {verifications.some((v) => v.type === "identity" && v.status === "verified") ? (
+                  <Badge variant="green" iconLeft={<CheckCircle2 className="h-3 w-3" />}>ID Verified</Badge>
+                ) : verifications.some((v) => v.status === "verified") ? (
+                  <Badge variant="green" iconLeft={<CheckCircle2 className="h-3 w-3" />}>
+                    {verifications.filter((v) => v.status === "verified").length} verified
+                  </Badge>
+                ) : (
+                  <Badge variant="gray">Not verified yet</Badge>
+                )}
               </div>
               <p className="text-base text-gray-700 mt-1">{profile.profession} · {profile.experienceYears}+ years experience</p>
               <div className="flex items-center gap-3 mt-2 text-sm text-gray-600 flex-wrap">

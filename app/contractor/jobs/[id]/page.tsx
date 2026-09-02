@@ -7,14 +7,27 @@ import { Button } from "@/components/ui/Button";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { TrustRing } from "@/components/ui/TrustRing";
+import { Modal } from "@/components/ui/Modal";
+import { Input, Select, Textarea } from "@/components/ui/Input";
 import { ArrowLeft, MapPin, Calendar, Users, Wallet, Briefcase, X, Star, CheckCircle2, Shield, MessageSquare, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { formatDate, formatINR, timeAgo } from "@/lib/utils";
 import { calculateMatchScore } from "@/lib/services/jobMatching";
 import { CITIES } from "@/lib/utils/cities";
 import { useMemo, useState } from "react";
-import type { ApplicationStatus } from "@/lib/types";
+import type { ApplicationStatus, Job } from "@/lib/types";
 import { WorkerProfileModal } from "@/components/features/WorkerProfileModal";
+
+type EditForm = {
+  title: string;
+  wagePerDay: number;
+  workersNeeded: number;
+  paymentFrequency: Job["paymentFrequency"];
+  startDate: string;
+  endDate: string;
+  description: string;
+  safetyNotes: string;
+};
 
 export default function ContractorJobDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -25,13 +38,18 @@ export default function ContractorJobDetailPage() {
   const allApps = useStore((s) => s.applications);
   const workers = useStore((s) => s.workerProfiles);
   const users = useStore((s) => s.users);
+  const verifications = useStore((s) => s.verifications);
   const updateApp = useStore((s) => s.updateApplicationStatus);
   const hire = useStore((s) => s.hireWorker);
   const closeJob = useStore((s) => s.closeJob);
+  const updateJob = useStore((s) => s.updateJob);
+  const pushToast = useStore((s) => s.pushToast);
 
   const [filter, setFilter] = useState<"all" | "strong">("all");
   const [sort, setSort] = useState<"match" | "trust" | "experience">("match");
   const [modalWorker, setModalWorker] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState<EditForm | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const apps = useMemo(() => allApps.filter((a) => a.jobId === id), [allApps, id]);
   const city = useMemo(() => CITIES.find((c) => c.name === job?.location), [job]);
@@ -62,6 +80,29 @@ export default function ContractorJobDetailPage() {
 
   if (!job) return <div className="text-sm text-gray-600">Job not found.</div>;
 
+  const saveEdit = async () => {
+    if (!editForm) return;
+    setSaving(true);
+    try {
+      await updateJob(job.id, {
+        title: editForm.title,
+        wagePerDay: editForm.wagePerDay,
+        workersNeeded: editForm.workersNeeded,
+        paymentFrequency: editForm.paymentFrequency,
+        description: editForm.description,
+        safetyNotes: editForm.safetyNotes,
+        startDate: new Date(editForm.startDate).toISOString(),
+        endDate: new Date(editForm.endDate).toISOString(),
+      });
+      pushToast("success", "Job updated");
+      setEditForm(null);
+    } catch {
+      // updateJob already showed the error toast
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-5 max-w-6xl">
       <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-gray-700 hover:text-navy-900">
@@ -82,7 +123,26 @@ export default function ContractorJobDetailPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm">Edit</Button>
+              {job.status !== "completed" && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    setEditForm({
+                      title: job.title,
+                      wagePerDay: job.wagePerDay,
+                      workersNeeded: job.workersNeeded,
+                      paymentFrequency: job.paymentFrequency,
+                      startDate: job.startDate.slice(0, 10),
+                      endDate: job.endDate.slice(0, 10),
+                      description: job.description,
+                      safetyNotes: job.safetyNotes,
+                    })
+                  }
+                >
+                  Edit
+                </Button>
+              )}
               {job.status === "active" && (
                 <Button variant="ghost" size="sm" onClick={() => closeJob(job.id)}>Close job</Button>
               )}
@@ -140,11 +200,14 @@ export default function ContractorJobDetailPage() {
                 user={e.user}
                 matchScore={e.match.matchScore}
                 matchReasons={e.match.reasons}
-                onAction={(action: "shortlist" | "reject" | "select" | "view" | "contact") => {
+                idVerified={verifications.some(
+                  (v) => v.userId === e.app.workerId && v.type === "identity" && v.status === "verified"
+                )}
+                onAction={(action: "shortlist" | "reject" | "select" | "view") => {
                   if (action === "shortlist") updateApp(e.app.id, "shortlisted");
                   if (action === "reject") updateApp(e.app.id, "rejected");
                   if (action === "select") hire(e.app.id);
-                  if (action === "view" || action === "contact") setModalWorker(e);
+                  if (action === "view") setModalWorker(e);
                 }}
               />
             ))
@@ -164,11 +227,80 @@ export default function ContractorJobDetailPage() {
           onHire={() => hire(modalWorker.app.id)}
         />
       )}
+
+      {/* Edit job modal */}
+      {editForm && (
+        <Modal open onClose={() => setEditForm(null)} title="Edit job" size="lg">
+          <div className="space-y-4">
+            <Input
+              label="Job title"
+              value={editForm.title}
+              onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+            />
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Input
+                label="Wage per day (₹)"
+                type="number"
+                value={editForm.wagePerDay}
+                onChange={(e) => setEditForm({ ...editForm, wagePerDay: Number(e.target.value) })}
+              />
+              <Input
+                label="Workers needed"
+                type="number"
+                value={editForm.workersNeeded}
+                onChange={(e) => setEditForm({ ...editForm, workersNeeded: Number(e.target.value) })}
+              />
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Input
+                label="Start date"
+                type="date"
+                value={editForm.startDate}
+                onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
+              />
+              <Input
+                label="End date"
+                type="date"
+                value={editForm.endDate}
+                onChange={(e) => setEditForm({ ...editForm, endDate: e.target.value })}
+              />
+            </div>
+            <Select
+              label="Payment frequency"
+              value={editForm.paymentFrequency}
+              onChange={(e) => setEditForm({ ...editForm, paymentFrequency: e.target.value as Job["paymentFrequency"] })}
+              options={[
+                { value: "daily", label: "Daily" },
+                { value: "weekly", label: "Weekly" },
+                { value: "on-completion", label: "On completion" },
+              ]}
+            />
+            <Textarea
+              label="Description"
+              value={editForm.description}
+              onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+            />
+            <Textarea
+              label="Safety notes"
+              value={editForm.safetyNotes}
+              onChange={(e) => setEditForm({ ...editForm, safetyNotes: e.target.value })}
+            />
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="secondary" size="md" onClick={() => setEditForm(null)}>
+                Cancel
+              </Button>
+              <Button variant="primary" size="md" loading={saving} onClick={saveEdit}>
+                Save changes
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
 
-function ApplicantCard({ application, worker, user, matchScore, matchReasons, onAction }: any) {
+function ApplicantCard({ application, worker, user, matchScore, matchReasons, idVerified, onAction }: any) {
   return (
     <div className="p-4 rounded-card border border-gray-200 hover:border-orange-500/40 transition">
       <div className="flex items-start gap-3 flex-wrap">
@@ -178,7 +310,9 @@ function ApplicantCard({ application, worker, user, matchScore, matchReasons, on
             <Link href={`/contractor/workers`} className="text-sm font-semibold text-navy-900 hover:text-orange-600">
               {user.name}
             </Link>
-            <Badge variant="green" size="sm" iconLeft={<CheckCircle2 className="h-2.5 w-2.5" />}>Verified</Badge>
+            {idVerified && (
+              <Badge variant="green" size="sm" iconLeft={<CheckCircle2 className="h-2.5 w-2.5" />}>ID Verified</Badge>
+            )}
             <StatusBadge status={application.status} />
           </div>
           <div className="text-xs text-gray-600 mt-1">
@@ -219,7 +353,12 @@ function ApplicantCard({ application, worker, user, matchScore, matchReasons, on
 
       <div className="mt-3 flex items-center gap-1.5 flex-wrap">
         <Button variant="secondary" size="sm" onClick={() => onAction("view")}>View profile</Button>
-        <Button variant="secondary" size="sm" onClick={() => onAction("contact")} iconLeft={<MessageSquare className="h-3.5 w-3.5" />}>Contact</Button>
+        <a
+          href={`tel:+91${user.phone}`}
+          className="inline-flex items-center justify-center h-8 px-3 text-sm rounded-lg gap-1.5 font-medium transition focus-ring bg-white text-navy-900 border border-gray-300 hover:bg-gray-100"
+        >
+          <MessageSquare className="h-3.5 w-3.5" /> Contact
+        </a>
         {application.status !== "shortlisted" && application.status !== "selected" && application.status !== "rejected" && (
           <>
             <Button variant="primary" size="sm" onClick={() => onAction("shortlist")}>Shortlist</Button>

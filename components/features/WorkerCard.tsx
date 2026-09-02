@@ -14,12 +14,15 @@ interface WorkerCardProps {
   matchScore?: number;
   matchReasons?: string[];
   onAction?: (action: "shortlist" | "contact" | "hire" | "view") => void;
+  actions?: { shortlist?: boolean; hire?: boolean; view?: boolean };
 }
 
-export function WorkerCard({ workerId, matchScore, matchReasons, onAction }: WorkerCardProps) {
+export function WorkerCard({ workerId, matchScore, matchReasons, onAction, actions }: WorkerCardProps) {
   const worker = useStore((s) => s.users.find((u) => u.id === workerId));
   const profile = useStore((s) => s.workerProfiles.find((p) => p.userId === workerId));
   if (!worker || !profile) return null;
+
+  const show = { shortlist: true, hire: true, view: true, ...(actions ?? {}) };
 
   return (
     <Card className="p-5 hover:shadow-elevated transition">
@@ -80,12 +83,21 @@ export function WorkerCard({ workerId, matchScore, matchReasons, onAction }: Wor
       </div>
 
       <div className="mt-4 flex items-center gap-1.5">
-        <Button variant="secondary" size="sm" fullWidth onClick={() => onAction?.("shortlist")}>
-          Shortlist
-        </Button>
-        <Button variant="primary" size="sm" fullWidth onClick={() => onAction?.("hire")}>
-          Hire
-        </Button>
+        {show.view && (
+          <Button variant="secondary" size="sm" fullWidth onClick={() => onAction?.("view")}>
+            View
+          </Button>
+        )}
+        {show.shortlist && (
+          <Button variant="secondary" size="sm" fullWidth onClick={() => onAction?.("shortlist")}>
+            Shortlist
+          </Button>
+        )}
+        {show.hire && (
+          <Button variant="primary" size="sm" fullWidth onClick={() => onAction?.("hire")}>
+            Hire
+          </Button>
+        )}
       </div>
     </Card>
   );

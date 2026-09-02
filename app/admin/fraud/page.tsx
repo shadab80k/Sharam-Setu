@@ -15,8 +15,56 @@ export default function FraudPage() {
   const signals = useStore((s) => s.fraudSignals);
   const reports = useStore((s) => s.safetyReports);
   const users = useStore((s) => s.users);
+  const resolveFraudSignal = useStore((s) => s.resolveFraudSignal);
+  const updateReportStatus = useStore((s) => s.updateReportStatus);
+  const suspendUser = useStore((s) => s.suspendUser);
   const [tab, setTab] = useState<"all" | "critical" | "high" | "medium" | "low">("all");
   const [selected, setSelected] = useState<string | null>(null);
+  const [acting, setActing] = useState(false);
+
+  const isResolved = (i: (typeof allIncidents)[number]) =>
+    i.kind === "fraud" ? i.status === "resolved" : i.status === "resolved" || i.status === "dismissed";
+
+  const handleResolve = async (i: (typeof allIncidents)[number]) => {
+    setActing(true);
+    try {
+      if (i.kind === "fraud") await resolveFraudSignal(i.id, true);
+      else await updateReportStatus(i.id, "resolved", "Reviewed by admin");
+      setSelected(null);
+    } catch {
+      // store already showed the error toast
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const handleDismiss = async (i: (typeof allIncidents)[number]) => {
+    setActing(true);
+    try {
+      if (i.kind === "fraud") await resolveFraudSignal(i.id, true);
+      else await updateReportStatus(i.id, "dismissed", "No action needed");
+      setSelected(null);
+    } catch {
+      // store already showed the error toast
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const handleSuspend = async (i: (typeof allIncidents)[number]) => {
+    if (!i.userId) return;
+    setActing(true);
+    try {
+      await suspendUser(i.userId);
+      if (i.kind === "fraud") await resolveFraudSignal(i.id, true);
+      else await updateReportStatus(i.id, "resolved", "Target user suspended");
+      setSelected(null);
+    } catch {
+      // store already showed the error toast
+    } finally {
+      setActing(false);
+    }
+  };
 
   const allIncidents = useMemo(() => {
     const list: any[] = [];
@@ -143,20 +191,26 @@ export default function FraudPage() {
                 <div className="font-semibold text-navy-900">{timeAgo(target.createdAt)}</div>
               </div>
             </div>
-            <div className="p-3 rounded-lg bg-blue-100">
-              <div className="text-[10px] uppercase tracking-wider text-blue-600 font-semibold">AI Analysis</div>
+            <div className="p-3 rounded-lg bg-cream-100 border border-gray-200">
+              <div className="text-[10px] uppercase tracking-wider text-gray-600 font-semibold">Severity assessment</div>
               <p className="text-sm text-navy-900 mt-1">
-                Based on account activity, IP analysis, and historical patterns, this signal shows
-                {target.severity === "critical" ? " immediate signs of fraud. Recommend suspension." :
-                  target.severity === "high" ? " elevated risk. Recommend investigation." :
-                  " minor concerns. Continue monitoring."}
+                {target.severity === "critical" ? "Critical signals indicate an immediate risk to users or the platform and warrant suspension of the account involved." :
+                  target.severity === "high" ? "High severity — review the target user's history and recent activity before deciding." :
+                  target.severity === "medium" ? "Medium severity — worth monitoring; resolve if no further signals appear." :
+                  "Low severity — typically one-off reports; dismissing is reasonable if nothing corroborates it."}
               </p>
             </div>
-            <div className="flex gap-2 justify-end pt-2 border-t border-gray-200">
+            <div className="flex gap-2 justify-end pt-2 border-t border-gray-200 flex-wrap">
               <Button variant="secondary" onClick={() => setSelected(null)}>Close</Button>
-              <Button variant="ghost">Dismiss</Button>
-              <Button variant="destructive">Suspend user</Button>
-              <Button variant="success" iconLeft={<CheckCircle2 className="h-4 w-4" />}>Resolve</Button>
+              {!isResolved(target) && (
+                <>
+                  <Button variant="ghost" disabled={acting || !target.userId} onClick={() => void handleDismiss(target)}>Dismiss</Button>
+                  {target.userId && (
+                    <Button variant="destructive" disabled={acting} onClick={() => void handleSuspend(target)}>Suspend user</Button>
+                  )}
+                  <Button variant="success" disabled={acting} loading={acting} iconLeft={<CheckCircle2 className="h-4 w-4" />} onClick={() => void handleResolve(target)}>Resolve</Button>
+                </>
+              )}
             </div>
           </div>
         )}

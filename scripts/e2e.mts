@@ -154,6 +154,43 @@ async function main() {
   const hiredJob = r.body.jobs.find((j: any) => j.id === openJob.id);
   assert(hiredJob && hiredJob.workersHired > 0, "workers_hired incremented", `hired=${hiredJob?.workersHired}`);
 
+  // ---------- 3.5 CONTRACTOR → WORKER INVITE (shortlist without application) ----------
+  section("🤝 3.5 CONTRACTOR INVITE FLOW");
+  // Ramesh already has an application on openJob, so invite targets a fresh job
+  r = await contractor.call("POST", "/api/jobs", {
+    title: `E2E Invite Job ${runStamp}`, category: "Plumbing",
+    description: "Contractor-invite verification job", location: "lucknow",
+    wagePerDay: 850, startDate: new Date().toISOString(),
+    endDate: new Date(Date.now() + 30 * 86400000).toISOString(),
+    workersNeeded: 1, requiredSkills: ["Pipe Fitting"], paymentFrequency: "daily",
+    safetyNotes: "E2E invite run",
+  });
+  const inviteJob = r.body.job;
+  assert(r.status === 201 && inviteJob?.id, "Contractor posts fresh job for invite test", JSON.stringify(r.body).slice(0, 150));
+
+  // contractor invites the worker directly — no application existed
+  r = await contractor.call("POST", "/api/applications/invite", { jobId: inviteJob.id, workerId: me.id });
+  const inviteApp = r.body.application;
+  assert(r.status === 201 && inviteApp?.status === "shortlisted", "Contractor invite creates shortlisted application", JSON.stringify(r.body).slice(0, 150));
+  assert(typeof inviteApp?.matchScore === "number" && inviteApp.matchScore >= 0, "Invite has server-computed match", `score=${inviteApp?.matchScore}`);
+
+  // worker was notified
+  r = await worker.call("GET", "/api/bootstrap");
+  const inviteNotif = (r.body.notifications ?? []).find((n: any) => n.title?.includes("shortlisted"));
+  assert(!!inviteNotif, "Worker notified of shortlist", JSON.stringify((r.body.notifications ?? [])[0] ?? {}).slice(0, 120));
+
+  // duplicate invite rejected (unique job+worker)
+  r = await contractor.call("POST", "/api/applications/invite", { jobId: inviteJob.id, workerId: me.id });
+  assert(r.status === 409, "Duplicate invite rejected", `status=${r.status}`);
+
+  // worker cannot use invite API
+  r = await worker.call("POST", "/api/applications/invite", { jobId: inviteJob.id, workerId: me.id });
+  assert(r.status === 403, "Worker blocked from invite API", `status=${r.status}`);
+
+  // missing job rejected
+  r = await contractor.call("POST", "/api/applications/invite", { jobId: "00000000-0000-0000-0000-000000000000", workerId: me.id });
+  assert(r.status === 404, "Invite to missing job rejected", `status=${r.status}`);
+
   // ---------- 4. PAYMENTS & ESCROW ----------
   section("💰 4. PAYMENTS & ESCROW");
   r = await contractor.call("POST", "/api/payments", {

@@ -34,6 +34,7 @@ export default function WorkerDashboard() {
   const expenses = useStore((s) => s.expenses.filter((e) => e.workerId === currentUserId));
   const verifications = useStore((s) => s.verifications);
   const assessments = useStore((s) => s.assessments);
+  const trustEvents = useStore((s) => s.trustEvents.filter((e) => e.userId === currentUserId));
   const currentLocation = useStore((s) => s.currentLocation);
   const toggleWorkerAvailability = useStore((s) => s.toggleWorkerAvailability);
   const router = useRouter();
@@ -43,6 +44,22 @@ export default function WorkerDashboard() {
   const totalPaid = payments.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
   const totalExp = expenses.reduce((s, e) => s + e.amount, 0);
   const savings = totalPaid - totalExp;
+
+  // Net trust-score change this calendar month from the server-authored
+  // trust_events audit trail (points = score AFTER each change); undefined
+  // when there's no baseline snapshot before this month.
+  const monthTrend = useMemo(() => {
+    const snaps = trustEvents
+      .filter((e) => /score updated/i.test(e.reason))
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    if (!snaps.length || !profile) return undefined;
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const before = snaps.filter((e) => new Date(e.createdAt) < monthStart);
+    if (!before.length) return undefined;
+    return profile.trustScore - before[before.length - 1].points;
+  }, [trustEvents, profile]);
   const recommended = useMemo(() => {
     if (!profile) return [];
     return jobs
@@ -175,7 +192,7 @@ export default function WorkerDashboard() {
             </Link>
           </div>
           <div className="flex justify-center">
-            <TrustRing score={profile.trustScore} size={160} trend={6} />
+            <TrustRing score={profile.trustScore} size={160} trend={monthTrend} />
           </div>
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-sm">

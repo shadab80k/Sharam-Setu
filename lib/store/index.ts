@@ -87,6 +87,7 @@ export interface AppState {
   contributeToSavingsGoal: (goalId: string, amount: number) => Promise<void>;
   completeAssessment: (workerId: string, skillName: string, score: number) => Promise<void>;
   applyToJob: (jobId: string, workerId: string, matchScore: number) => Promise<void>;
+  inviteWorker: (jobId: string, workerId: string) => Promise<void>;
   withdrawApplication: (appId: string) => Promise<void>;
   toggleSaveJob: (jobId: string) => Promise<void>;
   enrollCourse: (userId: string, courseTitle: string) => Promise<void>;
@@ -397,6 +398,19 @@ export const useStore = create<AppState>()(
           const res = await apiPost<{ application: Application; matchScore: number }>("/api/applications", { jobId });
           if (res.application) set({ applications: [res.application, ...get().applications] });
           get().pushToast("success", "Application sent");
+        } catch (e: any) {
+          get().pushToast(e instanceof Object && e.status === 409 ? "info" : "error", e.message);
+          throw e;
+        }
+      },
+
+      inviteWorker: async (jobId, workerId) => {
+        try {
+          const res = await apiPost<{ application: Application }>("/api/applications/invite", { jobId, workerId });
+          if (res.application) set({ applications: [res.application, ...get().applications] });
+          const worker = get().users.find((u) => u.id === workerId);
+          const job = get().jobs.find((j) => j.id === jobId);
+          get().pushToast("success", `${worker?.name ?? "Worker"} shortlisted for ${job?.title ?? "your job"} — they've been notified`);
         } catch (e: any) {
           get().pushToast(e instanceof Object && e.status === 409 ? "info" : "error", e.message);
           throw e;
