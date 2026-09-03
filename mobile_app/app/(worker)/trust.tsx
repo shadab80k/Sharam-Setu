@@ -1,6 +1,6 @@
 /**
- * Worker Trust — score ring, breakdown, event history,
- * improve-score actions (quiz / work record / certification).
+ * Worker Trust (V3) — score hero, breakdown bars, event timeline,
+ * improve-score ListRows → quiz / work record / cert / verification Sheets.
  */
 import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
@@ -13,9 +13,14 @@ import { timeAgo } from "@/utils";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { TrustRing } from "@/components/ui/TrustRing";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { Sheet, ProgressBar, EmptyState } from "@/components/ui/Feedback";
-import { Input, Chip } from "@/components/ui/Input";
+import { Badge, DotText } from "@/components/ui/Badge";
+import { Sheet } from "@/components/ui/Sheet";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Chip } from "@/components/ui/Chips";
+import { Field } from "@/components/ui/Field";
+import { ListRow } from "@/components/ui/ListRow";
+import { Icon } from "@/components/ui/Icon";
 import { C, T, R, S } from "@/theme/tokens";
 
 export default function WorkerTrust() {
@@ -38,18 +43,15 @@ export default function WorkerTrust() {
   const requestVerification = useStore((s) => s.requestVerification);
   const pushToast = useStore((s) => s.pushToast);
 
-  // Sheets
   const [quizOpen, setQuizOpen] = useState(false);
   const [workOpen, setWorkOpen] = useState(false);
   const [certOpen, setCertOpen] = useState(false);
   const [verifyOpen, setVerifyOpen] = useState(false);
 
-  // Quiz state
   const [selectedSkill, setSelectedSkill] = useState(profile?.profession ?? "Mason");
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
   const [quizSubmitted, setQuizSubmitted] = useState(false);
 
-  // Work record state
   const [workForm, setWorkForm] = useState({
     role: profile?.profession ?? "Mason",
     contractorId: "",
@@ -58,7 +60,6 @@ export default function WorkerTrust() {
     rating: 5,
   });
 
-  // Cert state
   const [certName, setCertName] = useState("");
 
   if (!user || !profile) return null;
@@ -72,12 +73,12 @@ export default function WorkerTrust() {
   const myQuizSkills = [...new Set([profile.profession, ...profile.skills])].filter((s) => quizFor(s).length > 0);
 
   const myVerifications = verifications.filter((v) => v.userId === user.id);
-  const verifyTypes: { value: string; label: string; desc: string }[] = [
-    { value: "identity", label: "Identity (Aadhaar/PAN)", desc: "Govt ID check by our team" },
-    { value: "address", label: "Address", desc: "Home address confirmation" },
-    { value: "skill", label: "Skill", desc: "Prove your trade skill" },
-    { value: "work-history", label: "Work History", desc: "Past employer confirmation" },
-    { value: "email", label: "Email", desc: "Email address confirmation" },
+  const verifyTypes: { value: string; label: string; desc: string; icon: string }[] = [
+    { value: "identity", label: "Identity (Aadhaar/PAN)", desc: "Govt ID check by our team", icon: "card-outline" },
+    { value: "address", label: "Address", desc: "Home address confirmation", icon: "location-outline" },
+    { value: "skill", label: "Skill", desc: "Prove your trade skill", icon: "construct-outline" },
+    { value: "work-history", label: "Work History", desc: "Past employer confirmation", icon: "time-outline" },
+    { value: "email", label: "Email", desc: "Email address confirmation", icon: "mail-outline" },
   ];
 
   function handleFinishQuiz() {
@@ -118,13 +119,13 @@ export default function WorkerTrust() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+    <SafeAreaView style={st.safe} edges={["top"]}>
+      <ScrollView contentContainerStyle={st.scroll}>
         {/* Hero */}
-        <View style={styles.hero}>
-          <TrustRing score={result.score} size={140} />
-          <Text style={styles.heroTitle}>Your trust score is your professional passport</Text>
-          <Text style={styles.heroSub}>
+        <View style={st.hero}>
+          <TrustRing score={result.score} size={148} />
+          <Text style={st.heroTitle}>Your trust score is your professional passport</Text>
+          <Text style={st.heroSub}>
             It grows with every verified job, completed assessment, and positive review.
           </Text>
         </View>
@@ -133,12 +134,15 @@ export default function WorkerTrust() {
         <Card>
           <CardHeader title={`Where your ${result.score}/100 comes from`} subtitle="Live from your activity" />
           {result.breakdown.map((b) => (
-            <View key={b.category} style={styles.breakRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.breakCat}>{b.category}</Text>
-                <Text style={styles.breakReason} numberOfLines={2}>{b.reason}</Text>
+            <View key={b.category} style={st.breakRow}>
+              <View style={{ flex: 1, gap: S.xs }}>
+                <View style={st.breakTop}>
+                  <Text style={st.breakCat}>{b.category}</Text>
+                  <Text style={st.breakPts}>{b.points}/{b.max}</Text>
+                </View>
+                <ProgressBar value={(b.points / Math.max(1, b.max)) * 100} height={4} />
+                <Text style={st.breakReason} numberOfLines={2}>{b.reason}</Text>
               </View>
-              <Text style={styles.breakPts}>{b.points}/{b.max}</Text>
             </View>
           ))}
         </Card>
@@ -149,104 +153,113 @@ export default function WorkerTrust() {
           {events.length === 0 ? (
             <EmptyState message="No trust events yet — apply to jobs to get started." />
           ) : (
-            events.slice(0, 8).map((e) => (
-              <View key={e.id} style={styles.eventRow}>
-                <View style={[styles.eventDot, { backgroundColor: e.points >= 0 ? C.green600 : C.red600 }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.eventReason}>{e.reason}</Text>
-                  <Text style={styles.eventTime}>{timeAgo(e.createdAt)}</Text>
-                </View>
-                <Text style={[styles.eventPts, { color: e.points >= 0 ? C.green600 : C.red600 }]}>
-                  {e.points >= 0 ? "+" : ""}{e.points}
-                </Text>
-              </View>
-            ))
+            <View>
+              {events.slice(0, 8).map((e) => (
+                <ListRow
+                  key={e.id}
+                  icon={e.points >= 0 ? "trending-up-outline" : "trending-down-outline"}
+                  iconTone={e.points >= 0 ? "green" : "red"}
+                  title={e.reason}
+                  sub={timeAgo(e.createdAt)}
+                  trailing={
+                    <Text style={[st.eventPts, { color: e.points >= 0 ? C.green : C.red }]}>
+                      {e.points >= 0 ? "+" : ""}{e.points}
+                    </Text>
+                  }
+                  divider
+                />
+              ))}
+            </View>
           )}
         </Card>
 
         {/* Improve score */}
         <Card>
           <CardHeader title="Improve your score" subtitle="Tap any option below" />
-          <Pressable style={styles.improveRow} onPress={() => setQuizOpen(true)}>
-            <View style={[styles.improveIcon, { backgroundColor: C.purple100 }]}><Text>📝</Text></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.improveTitle}>Complete skill assessment</Text>
-              <Text style={styles.improveDesc}>Take a quick 3-question quiz</Text>
-            </View>
-            <Badge label="+8" tone="green" />
-          </Pressable>
-          <Pressable style={styles.improveRow} onPress={() => setWorkOpen(true)}>
-            <View style={[styles.improveIcon, { backgroundColor: C.blue100 }]}><Text>🧾</Text></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.improveTitle}>Verify work history</Text>
-              <Text style={styles.improveDesc}>Add completed job records</Text>
-            </View>
-            <Badge label="+6" tone="green" />
-          </Pressable>
-          <Pressable style={styles.improveRow} onPress={() => setCertOpen(true)}>
-            <View style={[styles.improveIcon, { backgroundColor: C.green100 }]}><Text>🏅</Text></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.improveTitle}>Add certification</Text>
-              <Text style={styles.improveDesc}>Add training certificates</Text>
-            </View>
-            <Badge label="+4" tone="green" />
-          </Pressable>
-          <Pressable style={styles.improveRow} onPress={() => setVerifyOpen(true)}>
-            <View style={[styles.improveIcon, { backgroundColor: C.orange100 }]}><Text>🪪</Text></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.improveTitle}>Request verification</Text>
-              <Text style={styles.improveDesc}>Identity, address, skill checks</Text>
-            </View>
-            <Badge label="+" tone="green" />
-          </Pressable>
+          <ListRow
+            icon="school-outline" iconTone="purple"
+            title="Complete skill assessment" sub="Take a quick 3-question quiz"
+            trailing={<Badge label="+8" tone="green" />} chevron
+            onPress={() => setQuizOpen(true)} divider
+          />
+          <ListRow
+            icon="receipt-outline" iconTone="blue"
+            title="Verify work history" sub="Add completed job records"
+            trailing={<Badge label="+6" tone="green" />} chevron
+            onPress={() => setWorkOpen(true)} divider
+          />
+          <ListRow
+            icon="ribbon-outline" iconTone="green"
+            title="Add certification" sub="Add training certificates"
+            trailing={<Badge label="+4" tone="green" />} chevron
+            onPress={() => setCertOpen(true)} divider
+          />
+          <ListRow
+            icon="shield-checkmark-outline" iconTone="primary"
+            title="Request verification" sub="Identity, address, skill checks"
+            trailing={<Badge label="+" tone="green" />} chevron
+            onPress={() => setVerifyOpen(true)}
+          />
         </Card>
 
         {/* Verifications list */}
         <Card>
           <CardHeader title="Your verifications" />
           {myVerifications.length === 0 ? (
-            <Text style={styles.empty}>No verification requests yet.</Text>
+            <Text style={st.empty}>No verification requests yet.</Text>
           ) : (
-            myVerifications.map((v) => (
-              <View key={v.id} style={styles.eventRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.improveTitle}>{v.type.replace("-", " ").toUpperCase()}</Text>
-                </View>
-                <Badge label={v.status} tone={v.status === "verified" ? "green" : v.status === "rejected" ? "red" : "amber"} />
-              </View>
-            ))
+            <View>
+              {myVerifications.map((v) => (
+                <ListRow
+                  key={v.id}
+                  icon="ribbon-outline" iconTone="muted"
+                  title={v.type.replace("-", " ").toUpperCase()}
+                  trailing={<Badge label={v.status} tone={v.status === "verified" ? "green" : v.status === "rejected" ? "red" : "amber"} />}
+                  divider
+                />
+              ))}
+            </View>
           )}
         </Card>
 
         {/* AI coach */}
-        <Card style={{ backgroundColor: C.purple100, borderColor: C.purple100 }}>
-          <Text style={styles.coachLabel}>✨ AI Trust Coach</Text>
-          <Text style={styles.coachText}>
-            Complete one skill assessment and verify your last 2 work records to reach 90+ High Trust.
-          </Text>
-          <Button label="Ask the AI Coach" variant="ghost" onPress={() => router.push("/(worker)/assistant")} fullWidth />
+        <Card style={{ marginBottom: S.xl }}>
+          <View style={st.coachRow}>
+            <View style={st.coachIcon}>
+              <Icon name="sparkles" size={18} color={C.purple} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={st.coachLabel}>AI Trust Coach</Text>
+              <Text style={st.coachText}>
+                Complete one skill assessment and verify your last 2 work records to reach 90+ High Trust.
+              </Text>
+            </View>
+          </View>
+          <Button label="Ask the AI Coach" variant="secondary" onPress={() => router.push("/(worker)/assistant")} fullWidth />
         </Card>
       </ScrollView>
 
       {/* Quiz sheet */}
       <Sheet open={quizOpen} onClose={() => setQuizOpen(false)} title="Skill Assessment Quiz">
         {quizSubmitted ? (
-          <View style={styles.quizDone}>
-            <Text style={styles.quizDoneEmoji}>🎉</Text>
-            <Text style={styles.quizDoneText}>Quiz complete — score recorded!</Text>
+          <View style={st.quizDone}>
+            <View style={st.quizDoneCircle}>
+              <Icon name="checkmark" size={34} color={C.green} />
+            </View>
+            <Text style={st.quizDoneText}>Quiz complete — score recorded!</Text>
           </View>
         ) : (
           <>
-            <Text style={styles.sheetLabel}>Skill to assess</Text>
-            <View style={styles.chipWrap}>
+            <Text style={st.sheetLabel}>Skill to assess</Text>
+            <View style={st.chipWrap}>
               {myQuizSkills.map((s) => (
                 <Chip key={s} label={s} active={selectedSkill === s} onPress={() => { setSelectedSkill(s); setQuizAnswers({}); }} small />
               ))}
             </View>
             {quizQuestions.map((q, idx) => (
               <View key={idx} style={{ marginTop: S.lg }}>
-                <Text style={styles.quizQ}>{idx + 1}. {q.q}</Text>
-                <View style={styles.chipWrap}>
+                <Text style={st.quizQ}>{idx + 1}. {q.q}</Text>
+                <View style={st.chipWrap}>
                   {q.options.map((o, oi) => (
                     <Chip
                       key={oi}
@@ -259,46 +272,37 @@ export default function WorkerTrust() {
                 </View>
               </View>
             ))}
-            <Button
-              label="Submit Answers"
-              onPress={handleFinishQuiz}
-              disabled={Object.keys(quizAnswers).length < quizQuestions.length}
-              fullWidth
-            />
+            <View style={{ marginTop: S.lg }}>
+              <Button
+                label="Submit Answers"
+                onPress={handleFinishQuiz}
+                disabled={Object.keys(quizAnswers).length < quizQuestions.length}
+                fullWidth
+              />
+            </View>
           </>
         )}
       </Sheet>
 
       {/* Work record sheet */}
       <Sheet open={workOpen} onClose={() => setWorkOpen(false)} title="Add Work Record">
-        <Input label="Role" value={workForm.role} onChangeText={(v) => setWorkForm({ ...workForm, role: v })} />
-        <Text style={styles.sheetLabel}>Contractor you worked with</Text>
-        <View style={styles.chipWrap}>
-          {contractors.map((c) => {
-            const cu = users.find((u) => u.id === c.userId);
-            return (
-              <Chip
-                key={c.userId}
-                label={c.companyName}
-                active={workForm.contractorId === c.userId}
-                onPress={() => setWorkForm({ ...workForm, contractorId: c.userId })}
-                small
-              />
-            );
-          })}
+        <Field label="Role" value={workForm.role} onChangeText={(v: string) => setWorkForm({ ...workForm, role: v })} />
+        <Text style={st.sheetLabel}>Contractor you worked with</Text>
+        <View style={st.chipWrap}>
+          {contractors.map((c) => (
+            <Chip
+              key={c.userId}
+              label={c.companyName}
+              active={workForm.contractorId === c.userId}
+              onPress={() => setWorkForm({ ...workForm, contractorId: c.userId })}
+              small
+            />
+          ))}
         </View>
-        <Input
-          label="Start date (YYYY-MM-DD)"
-          value={workForm.startDate}
-          onChangeText={(v) => setWorkForm({ ...workForm, startDate: v })}
-        />
-        <Input
-          label="End date (YYYY-MM-DD)"
-          value={workForm.endDate}
-          onChangeText={(v) => setWorkForm({ ...workForm, endDate: v })}
-        />
-        <Text style={styles.sheetLabel}>Overall rating from contractor</Text>
-        <View style={styles.chipWrap}>
+        <Field label="Start date (YYYY-MM-DD)" value={workForm.startDate} onChangeText={(v: string) => setWorkForm({ ...workForm, startDate: v })} />
+        <Field label="End date (YYYY-MM-DD)" value={workForm.endDate} onChangeText={(v: string) => setWorkForm({ ...workForm, endDate: v })} />
+        <Text style={st.sheetLabel}>Overall rating from contractor</Text>
+        <View style={st.chipWrap}>
           {[1, 2, 3, 4, 5].map((r) => (
             <Chip key={r} label={"★".repeat(r)} active={workForm.rating === r} onPress={() => setWorkForm({ ...workForm, rating: r })} small />
           ))}
@@ -308,7 +312,7 @@ export default function WorkerTrust() {
 
       {/* Certification sheet */}
       <Sheet open={certOpen} onClose={() => setCertOpen(false)} title="Add Certification">
-        <Input
+        <Field
           label="Certificate name"
           value={certName}
           onChangeText={setCertName}
@@ -322,26 +326,21 @@ export default function WorkerTrust() {
         {verifyTypes.map((t) => {
           const existing = myVerifications.find((v) => v.type === t.value);
           return (
-            <Pressable
+            <ListRow
               key={t.value}
-              style={styles.improveRow}
+              icon={t.icon as never} iconTone="primary"
+              title={t.label} sub={t.desc}
+              trailing={existing
+                ? <Badge label={existing.status} tone={existing.status === "verified" ? "green" : "amber"} />
+                : <Badge label="Request" tone="blue" />}
+              chevron
+              divider
               onPress={() => {
+                if (existing?.status === "pending" || existing?.status === "verified") return;
                 requestVerification(user!.id, t.value as never);
                 setVerifyOpen(false);
               }}
-              disabled={existing?.status === "pending" || existing?.status === "verified"}
-            >
-              <View style={[styles.improveIcon, { backgroundColor: C.orange100 }]}><Text>🪪</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.improveTitle}>{t.label}</Text>
-                <Text style={styles.improveDesc}>{t.desc}</Text>
-              </View>
-              {existing ? (
-                <Badge label={existing.status} tone={existing.status === "verified" ? "green" : "amber"} />
-              ) : (
-                <Badge label="Request" tone="blue" />
-              )}
-            </Pressable>
+            />
           );
         })}
       </Sheet>
@@ -349,36 +348,30 @@ export default function WorkerTrust() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
-  scroll: { padding: S.lg, paddingBottom: S.xxxl, gap: S.lg },
-  hero: { alignItems: "center", gap: S.md, paddingVertical: S.lg },
-  heroTitle: { fontSize: T.lg, fontWeight: "900", color: C.navy900, textAlign: "center", marginTop: S.sm },
-  heroSub: { fontSize: T.sm, color: C.gray600, textAlign: "center", lineHeight: 20 },
-  breakRow: { flexDirection: "row", alignItems: "center", gap: S.md, paddingVertical: S.sm },
-  breakCat: { fontSize: T.sm, fontWeight: "800", color: C.navy900 },
-  breakReason: { fontSize: T.xs, color: C.gray500, marginTop: 2 },
-  breakPts: { fontSize: T.sm, fontWeight: "800", color: C.orange600 },
-  eventRow: { flexDirection: "row", alignItems: "center", gap: S.md, paddingVertical: S.sm },
-  eventDot: { width: 8, height: 8, borderRadius: 4 },
-  eventReason: { fontSize: T.xs, color: C.gray700, fontWeight: "600", flexShrink: 1 },
-  eventTime: { fontSize: T.xs, color: C.gray500, marginTop: 2 },
-  eventPts: { fontSize: T.sm, fontWeight: "800" },
-  improveRow: {
-    flexDirection: "row", alignItems: "center", gap: S.md,
-    padding: S.md, borderRadius: R.md, borderWidth: 1, borderColor: C.gray200,
-    marginBottom: S.sm, backgroundColor: C.white,
-  },
-  improveIcon: { width: 36, height: 36, borderRadius: R.sm, alignItems: "center", justifyContent: "center" },
-  improveTitle: { fontSize: T.sm, fontWeight: "800", color: C.navy900 },
-  improveDesc: { fontSize: T.xs, color: C.gray600, marginTop: 1 },
-  empty: { fontSize: T.sm, color: C.gray500, paddingVertical: S.md },
-  coachLabel: { fontSize: T.sm, fontWeight: "800", color: C.purple600, marginBottom: S.xs },
-  coachText: { fontSize: T.sm, color: C.navy900, lineHeight: 20, marginBottom: S.md },
-  sheetLabel: { fontSize: T.sm, fontWeight: "700", color: C.navy900, marginBottom: S.sm },
-  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: S.sm },
-  quizQ: { fontSize: T.sm, fontWeight: "700", color: C.navy900, marginBottom: S.sm },
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
+  scroll: { padding: S.lg, paddingBottom: S.xxxl, gap: S.md },
+  hero: { alignItems: "center", gap: S.md, paddingVertical: S.md },
+  heroTitle: { fontSize: T.body + 3, fontWeight: "800", color: C.text, textAlign: "center", marginTop: S.xs },
+  heroSub: { fontSize: T.caption + 1, color: C.text2, textAlign: "center", lineHeight: 21 },
+  breakRow: { paddingVertical: S.sm, gap: S.xs },
+  breakTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  breakCat: { fontSize: T.caption + 1, fontWeight: "700", color: C.text },
+  breakPts: { fontSize: T.caption, fontWeight: "800", color: C.primary },
+  breakReason: { fontSize: T.tiny, color: C.text3, lineHeight: 16 },
+  eventPts: { fontSize: T.body, fontWeight: "800" },
+  empty: { fontSize: T.caption + 1, color: C.text3, paddingVertical: S.md },
+  coachRow: { flexDirection: "row", gap: S.md, alignItems: "flex-start", marginBottom: S.md },
+  coachIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: C.purpleSoft, alignItems: "center", justifyContent: "center" },
+  coachLabel: { fontSize: T.caption, fontWeight: "800", color: C.purple, textTransform: "uppercase", letterSpacing: 0.4 },
+  coachText: { fontSize: T.caption + 1, color: C.text2, lineHeight: 20, marginTop: 2 },
+  sheetLabel: { fontSize: T.caption, fontWeight: "700", color: C.text, marginBottom: S.sm, marginTop: S.xs },
+  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: S.sm, marginBottom: S.md },
+  quizQ: { fontSize: T.caption + 1, fontWeight: "700", color: C.text, marginBottom: S.sm },
   quizDone: { alignItems: "center", paddingVertical: S.xxl, gap: S.md },
-  quizDoneEmoji: { fontSize: 44 },
-  quizDoneText: { fontSize: T.base, fontWeight: "800", color: C.green600 },
+  quizDoneCircle: {
+    width: 72, height: 72, borderRadius: 72 * 0.36,
+    backgroundColor: C.greenSoft, alignItems: "center", justifyContent: "center",
+  },
+  quizDoneText: { fontSize: T.body, fontWeight: "800", color: C.green, textAlign: "center" },
 });

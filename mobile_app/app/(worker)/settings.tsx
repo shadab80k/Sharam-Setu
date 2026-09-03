@@ -1,5 +1,5 @@
 /**
- * Settings — language toggle (English active, Hindi visible but locked for v1.1),
+ * Settings (V3) — language rows (English active / Hindi locked),
  * account info, about, logout.
  */
 import React from "react";
@@ -8,8 +8,10 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "@/store";
 import { Card, CardHeader } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { Badge, DotText } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { ListRow } from "@/components/ui/ListRow";
+import { Icon } from "@/components/ui/Icon";
 import { C, T, R, S } from "@/theme/tokens";
 
 export default function WorkerSettings() {
@@ -20,52 +22,58 @@ export default function WorkerSettings() {
   if (!user) return null;
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Pressable onPress={() => router.back()} hitSlop={12}><Text style={styles.backText}>← Back</Text></Pressable>
-        <Text style={styles.title}>Settings</Text>
+    <SafeAreaView style={st.safe} edges={["top"]}>
+      <ScrollView contentContainerStyle={st.scroll}>
+        <Pressable onPress={() => router.back()} hitSlop={12} style={st.backBtn}>
+          <Icon name="chevron-back" size={20} color={C.text} />
+        </Pressable>
+        <Text style={st.title}>Settings</Text>
 
         {/* Language */}
-        <Card>
-          <CardHeader title="Language" subtitle="App display language" />
-          <View style={styles.langRow}>
-            <View style={[styles.langOpt, styles.langActive]}>
-              <Text style={styles.langEmoji}>🇬🇧</Text>
-              <Text style={styles.langName}>English</Text>
-              <Badge label="✓ Active" tone="green" />
-            </View>
-            <View style={styles.langOpt}>
-              <Text style={styles.langEmoji}>🇮🇳</Text>
-              <Text style={styles.langName}>हिंदी</Text>
-              <Badge label="🔒 Coming soon" tone="amber" />
-            </View>
-          </View>
-          <Text style={styles.hindiNote}>
+        <Card style={{ paddingHorizontal: S.md }}>
+          <CardHeader title="Language" subtitle="App display language" style={{ paddingHorizontal: 0 }} />
+          <ListRow
+            icon="language-outline"
+            iconTone="green"
+            title="English"
+            sub="Active"
+            trailing={<DotText text="Active" tone="green" />}
+            divider
+          />
+          <ListRow
+            icon="language-outline"
+            iconTone="muted"
+            title="हिंदी"
+            sub="Coming soon"
+            trailing={<Badge label="Soon" tone="amber" />}
+          />
+          <Text style={st.hindiNote}>
             Hindi translation is being finalized and will arrive in a coming update.
           </Text>
         </Card>
 
         {/* Account */}
-        <Card>
-          <CardHeader title="Account" />
-          <View style={styles.acctRow}><Text style={styles.acctLabel}>Name</Text><Text style={styles.acctValue}>{user.name}</Text></View>
-          <View style={styles.acctRow}><Text style={styles.acctLabel}>Phone</Text><Text style={styles.acctValue}>+91 {user.phone}</Text></View>
-          <View style={styles.acctRow}><Text style={styles.acctLabel}>Email</Text><Text style={styles.acctValue}>{"<"}{user.email}{">"}</Text></View>
-          <View style={styles.acctRow}><Text style={styles.acctLabel}>Role</Text><Text style={styles.acctValue}>{user.role}</Text></View>
-          <View style={styles.acctRow}><Text style={styles.acctLabel}>Status</Text><Badge label={user.status} tone={user.status === "active" ? "green" : "red"} /></View>
+        <Card style={{ paddingHorizontal: S.md }}>
+          <CardHeader title="Account" style={{ paddingHorizontal: 0 }} />
+          <InfoRow label="Name" value={user.name} />
+          <InfoRow label="Phone" value={`+91 ${user.phone}`} />
+          <InfoRow label="Email" value={user.email} />
+          <InfoRow label="Role" value={user.role} />
+          <InfoRow label="Status" value={user.status} last />
         </Card>
 
         {/* About */}
-        <Card>
+        <Card style={{ marginBottom: S.xl }}>
           <CardHeader title="About ShramSetu" />
-          <Text style={styles.body}>
+          <Text style={st.body}>
             ShramSetu connects workers with verified contractors — with AI job matching, a trust score earned through real work, wage estimates, and an AI assistant. Version 1.0.0
           </Text>
         </Card>
 
         <Button
           label="Log out"
-          variant="destructive"
+          variant="danger"
+          icon="log-out-outline"
           onPress={() =>
             Alert.alert("Log out", "Are you sure?", [
               { text: "Cancel", style: "cancel" },
@@ -79,24 +87,24 @@ export default function WorkerSettings() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
-  scroll: { padding: S.lg, paddingTop: S.md, paddingBottom: S.xxxl, gap: S.lg },
-  backText: { color: C.gray600, fontSize: T.sm, fontWeight: "700" },
-  title: { fontSize: T.xxl, fontWeight: "900", color: C.navy900 },
-  langRow: { flexDirection: "row", gap: S.md, marginTop: S.xs },
-  langOpt: {
-    flex: 1,
-    borderWidth: 1.5, borderColor: C.gray200, borderRadius: R.md,
-    padding: S.md, alignItems: "center", gap: S.xs,
-    opacity: 0.75,
-  },
-  langActive: { borderColor: C.green600, backgroundColor: C.green100, opacity: 1 },
-  langEmoji: { fontSize: 26 },
-  langName: { fontSize: T.base, fontWeight: "800", color: C.navy900 },
-  hindiNote: { fontSize: T.xs, color: C.gray500, marginTop: S.md },
-  acctRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: S.sm, gap: S.md },
-  acctLabel: { fontSize: T.sm, color: C.gray500, fontWeight: "700" },
-  acctValue: { fontSize: T.sm, color: C.navy900, fontWeight: "700", flex: 1, textAlign: "right" },
-  body: { fontSize: T.sm, color: C.gray600, lineHeight: 20 },
+function InfoRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
+  return (
+    <View style={[st.acctRow, !last && st.acctDivider]}>
+      <Text style={st.acctLabel}>{label}</Text>
+      <Text style={st.acctValue}>{value}</Text>
+    </View>
+  );
+}
+
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
+  scroll: { padding: S.lg, paddingTop: S.md, paddingBottom: S.xxxl, gap: S.md },
+  backBtn: { width: 38, height: 38, borderRadius: R.pill, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", alignSelf: "flex-start" },
+  title: { fontSize: T.title + 4, fontWeight: "800", color: C.text },
+  hindiNote: { fontSize: T.tiny, color: C.text3, marginTop: S.sm, marginBottom: S.md },
+  acctRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: S.sm + 2, gap: S.md },
+  acctDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: C.hairline },
+  acctLabel: { fontSize: T.caption + 1, color: C.text2, fontWeight: "600" },
+  acctValue: { fontSize: T.caption + 1, color: C.text, fontWeight: "700", flex: 1, textAlign: "right" },
+  body: { fontSize: T.caption + 1, color: C.text2, lineHeight: 21 },
 });

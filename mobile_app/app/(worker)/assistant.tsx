@@ -1,6 +1,6 @@
 /**
- * AI Assistant — Gemini-powered chat over the same /api/assistant endpoint,
- * with quick prompts, intent labels, typing dots, CTA buttons.
+ * AI Assistant (V3) — chat with orange user bubbles / white bot bubbles,
+ * intent captions, suggestion chips, typing dots, CTA buttons.
  */
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -9,9 +9,10 @@ import {
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "@/store";
-import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
 import { timeAgo } from "@/utils";
+import { toAppRoute } from "@/utils/routes";
 import { C, T, R, S } from "@/theme/tokens";
 
 const SUGGESTED_PROMPTS = [
@@ -22,12 +23,6 @@ const SUGGESTED_PROMPTS = [
   "How can I save more?",
   "Which skill should I learn?",
 ];
-
-const INTENT_EMOJI: Record<string, string> = {
-  JOB_SEARCH: "💼", WAGE_ESTIMATE: "💰", TRUST_CHECK: "🛡️", PAYMENT_STATUS: "💰",
-  SAVINGS_ADVICE: "💰", CAREER_GUIDANCE: "🎓", PROFILE_HELP: "👤",
-  SAFETY_REPORT: "⚠️", GENERAL_HELP: "✨",
-};
 
 export default function WorkerAssistant() {
   const router = useRouter();
@@ -59,53 +54,57 @@ export default function WorkerAssistant() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={st.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
         {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.botBadge}><Text>✨</Text></View>
+        <View style={st.header}>
+          <View style={st.botBadge}>
+            <Icon name="sparkles" size={19} color={C.purple} />
+          </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>AI Assistant</Text>
-            <Text style={styles.headerSub}>Jobs · wages · money · career</Text>
+            <Text style={st.headerTitle}>AI Assistant</Text>
+            <Text style={st.headerSub}>Jobs · wages · money · career</Text>
           </View>
           <Pressable onPress={() => clearChat(user?.id ?? "")} hitSlop={10}>
-            <Text style={styles.clearText}>Clear</Text>
+            <Text style={st.clearText}>Clear</Text>
           </Pressable>
         </View>
 
         {/* Messages */}
-        <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={styles.chat}>
+        <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={st.chat}>
           {chatHistory.length === 0 && (
-            <View style={styles.welcome}>
-              <View style={styles.welcomeIcon}><Text style={{ fontSize: 26 }}>✨</Text></View>
-              <Text style={styles.welcomeTitle}>
-                Hi {profile?.profession && profile.profession !== "Helper" ? `${profile.profession} ` : ""}{user?.name?.split(" ")[0]} 👋
+            <View style={st.welcome}>
+              <View style={st.welcomeIcon}>
+                <Icon name="sparkles" size={26} color={C.purple} />
+              </View>
+              <Text style={st.welcomeTitle}>
+                Hi {profile?.profession && profile.profession !== "Helper" ? `${profile.profession} ` : ""}{user?.name?.split(" ")[0]}
               </Text>
-              <Text style={styles.welcomeSub}>
+              <Text style={st.welcomeSub}>
                 I'm here to help with jobs, wages, payments, and career growth. Try a suggestion below.
               </Text>
             </View>
           )}
 
           {chatHistory.map((msg) => (
-            <View key={msg.id} style={[styles.msgRow, msg.role === "user" ? { justifyContent: "flex-end" } : { justifyContent: "flex-start" }]}>
-              <View style={[styles.msgCol, msg.role === "user" ? { alignItems: "flex-end" } : { alignItems: "flex-start" }]}>
-                <View style={styles.msgMeta}>
+            <View key={msg.id} style={[st.msgRow, msg.role === "user" ? { justifyContent: "flex-end" } : { justifyContent: "flex-start" }]}>
+              <View style={[st.msgCol, msg.role === "user" ? { alignItems: "flex-end" } : { alignItems: "flex-start" }]}>
+                <View style={st.msgMeta}>
                   {msg.role === "assistant" ? (
                     <>
                       {msg.intent && (
-                        <Text style={styles.intent}>
-                          {INTENT_EMOJI[msg.intent] ?? "✨"} {msg.intent.replace("_", " ")}
-                        </Text>
+                        <View style={st.intentChip}>
+                          <Text style={st.intent}>{msg.intent.replace("_", " ")}</Text>
+                        </View>
                       )}
-                      <Text style={styles.time}>{timeAgo(msg.createdAt)}</Text>
+                      <Text style={st.time}>{timeAgo(msg.createdAt)}</Text>
                     </>
                   ) : (
-                    <Text style={styles.time}>{timeAgo(msg.createdAt)}</Text>
+                    <Text style={st.time}>{timeAgo(msg.createdAt)}</Text>
                   )}
                 </View>
-                <View style={[styles.bubble, msg.role === "user" ? styles.bubbleUser : styles.bubbleBot]}>
-                  <Text style={msg.role === "user" ? styles.bubbleUserText : styles.bubbleBotText}>
+                <View style={[st.bubble, msg.role === "user" ? st.bubbleUser : st.bubbleBot]}>
+                  <Text style={msg.role === "user" ? st.bubbleUserText : st.bubbleBotText}>
                     {msg.content}
                   </Text>
                 </View>
@@ -114,7 +113,7 @@ export default function WorkerAssistant() {
                     label={msg.cta.label}
                     variant="secondary"
                     size="sm"
-                    onPress={() => router.push(msg.cta!.link as never)}
+                    onPress={() => router.push(toAppRoute(msg.cta!.link) as never)}
                   />
                 )}
               </View>
@@ -122,12 +121,12 @@ export default function WorkerAssistant() {
           ))}
 
           {thinking && (
-            <View style={[styles.msgRow, { justifyContent: "flex-start" }]}>
-              <View style={styles.bubbleBot}>
-                <View style={styles.dots}>
-                  <View style={[styles.dot, { opacity: 0.4 }]} />
-                  <View style={[styles.dot, { opacity: 0.7 }]} />
-                  <View style={[styles.dot, { opacity: 1 }]} />
+            <View style={[st.msgRow, { justifyContent: "flex-start" }]}>
+              <View style={st.bubbleBot}>
+                <View style={st.dots}>
+                  <View style={[st.dot, { opacity: 0.4 }]} />
+                  <View style={[st.dot, { opacity: 0.7 }]} />
+                  <View style={[st.dot, { opacity: 1 }]} />
                 </View>
               </View>
             </View>
@@ -135,30 +134,30 @@ export default function WorkerAssistant() {
         </ScrollView>
 
         {/* Suggestions + input */}
-        <View style={styles.inputZone}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.promptRow}>
+        <View style={st.inputZone}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={st.promptRow}>
             {SUGGESTED_PROMPTS.slice(0, 4).map((p) => (
-              <Pressable key={p} onPress={() => send(p)} style={styles.promptChip}>
-                <Text style={styles.promptText}>{p}</Text>
+              <Pressable key={p} onPress={() => send(p)} style={st.promptChip}>
+                <Text style={st.promptText}>{p}</Text>
               </Pressable>
             ))}
           </ScrollView>
-          <View style={styles.inputRow}>
+          <View style={st.inputRow}>
             <TextInput
               value={input}
               onChangeText={setInput}
               onSubmitEditing={() => send(input)}
               placeholder="Ask anything about jobs, money, skills…"
-              placeholderTextColor={C.gray500}
-              style={styles.input}
+              placeholderTextColor={C.text3}
+              style={st.input}
               multiline
             />
             <Pressable
               onPress={() => send(input)}
               disabled={!input.trim() || thinking}
-              style={[styles.sendBtn, (!input.trim() || thinking) && { opacity: 0.45 }]}
+              style={[st.sendBtn, (!input.trim() || thinking) && { opacity: 0.4 }]}
             >
-              <Text style={styles.sendText}>➤</Text>
+              <Icon name="arrow-up" size={20} color={C.onPrimary} />
             </Pressable>
           </View>
         </View>
@@ -167,62 +166,65 @@ export default function WorkerAssistant() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
   header: {
     flexDirection: "row", alignItems: "center", gap: S.md,
     paddingHorizontal: S.lg, paddingVertical: S.md,
-    backgroundColor: C.white, borderBottomWidth: 1, borderBottomColor: C.gray200,
+    backgroundColor: C.surface, borderBottomWidth: 1, borderBottomColor: C.hairline,
   },
   botBadge: {
-    width: 38, height: 38, borderRadius: R.md,
-    backgroundColor: C.purple600, alignItems: "center", justifyContent: "center",
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: C.purpleSoft, alignItems: "center", justifyContent: "center",
   },
-  headerTitle: { fontSize: T.md, fontWeight: "900", color: C.navy900 },
-  headerSub: { fontSize: T.xs, color: C.gray500, marginTop: 1 },
-  clearText: { color: C.gray500, fontSize: T.xs, fontWeight: "700" },
+  headerTitle: { fontSize: T.body + 1, fontWeight: "800", color: C.text },
+  headerSub: { fontSize: T.tiny, color: C.text3, marginTop: 1 },
+  clearText: { color: C.text3, fontSize: T.caption, fontWeight: "700" },
   chat: { padding: S.lg, gap: S.md, paddingBottom: S.xl },
   welcome: { alignItems: "center", paddingVertical: S.xxl, gap: S.sm },
   welcomeIcon: {
-    width: 52, height: 52, borderRadius: 26,
-    backgroundColor: C.purple100, alignItems: "center", justifyContent: "center",
+    width: 56, height: 56, borderRadius: 20,
+    backgroundColor: C.purpleSoft, alignItems: "center", justifyContent: "center",
     marginBottom: S.xs,
   },
-  welcomeTitle: { fontSize: T.lg, fontWeight: "800", color: C.navy900 },
-  welcomeSub: { fontSize: T.sm, color: C.gray600, textAlign: "center", lineHeight: 20, paddingHorizontal: S.xl },
+  welcomeTitle: { fontSize: T.body + 2, fontWeight: "800", color: C.text },
+  welcomeSub: { fontSize: T.caption + 1, color: C.text2, textAlign: "center", lineHeight: 21, paddingHorizontal: S.xl },
   msgRow: { flexDirection: "row" },
   msgCol: { maxWidth: "85%", gap: 4 },
   msgMeta: { flexDirection: "row", alignItems: "center", gap: S.sm, paddingHorizontal: S.xs },
-  intent: { fontSize: 10, color: C.purple600, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
-  time: { fontSize: 10, color: C.gray500 },
+  intentChip: {
+    backgroundColor: C.purpleSoft,
+    borderRadius: R.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  intent: { fontSize: 9.5, color: C.purple, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 },
+  time: { fontSize: 10, color: C.text3 },
   bubble: { borderRadius: R.lg, paddingHorizontal: S.lg, paddingVertical: S.md },
-  bubbleUser: { backgroundColor: C.orange600, borderBottomRightRadius: 4 },
-  bubbleBot: { backgroundColor: C.white, borderWidth: 1, borderColor: C.gray200, borderBottomLeftRadius: 4 },
-  bubbleUserText: { color: C.white, fontSize: T.sm, lineHeight: 20 },
-  bubbleBotText: { color: C.navy900, fontSize: T.sm, lineHeight: 20 },
-  dots: { flexDirection: "row", gap: 5, paddingVertical: 2 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.purple600 },
-  inputZone: { backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.gray200, paddingTop: S.sm, paddingBottom: S.md },
+  bubbleUser: { backgroundColor: C.primary, borderBottomRightRadius: 4 },
+  bubbleBot: { backgroundColor: C.surface, borderBottomLeftRadius: 4 },
+  bubbleUserText: { color: C.onPrimary, fontSize: T.caption + 1, lineHeight: 21 },
+  bubbleBotText: { color: C.text, fontSize: T.caption + 1, lineHeight: 21 },
+  dots: { flexDirection: "row", gap: 5, paddingVertical: 4 },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.purple },
+  inputZone: { backgroundColor: C.surface, borderTopWidth: 1, borderTopColor: C.hairline, paddingTop: S.sm, paddingBottom: S.md },
   promptRow: { gap: S.sm, paddingHorizontal: S.lg, paddingVertical: S.xs },
   promptChip: {
-    backgroundColor: C.cream100,
-    borderWidth: 1, borderColor: C.gray200,
-    borderRadius: R.pill, paddingHorizontal: S.md, paddingVertical: 6,
+    backgroundColor: C.muted,
+    borderRadius: R.pill, paddingHorizontal: S.md + 2, paddingVertical: 7,
   },
-  promptText: { fontSize: T.xs, color: C.gray700, fontWeight: "600" },
+  promptText: { fontSize: T.caption, color: C.text2, fontWeight: "600" },
   inputRow: { flexDirection: "row", alignItems: "flex-end", gap: S.sm, paddingHorizontal: S.lg, paddingTop: S.sm },
   input: {
     flex: 1,
-    backgroundColor: C.cream50,
-    borderWidth: 1, borderColor: C.gray300,
+    backgroundColor: C.muted,
     borderRadius: R.lg,
-    paddingHorizontal: S.md, paddingVertical: S.sm,
-    fontSize: T.sm, color: C.navy900,
+    paddingHorizontal: S.md, paddingVertical: S.sm + 2,
+    fontSize: T.caption + 1, color: C.text,
     maxHeight: 100,
   },
   sendBtn: {
     width: 46, height: 46, borderRadius: 23,
-    backgroundColor: C.orange600, alignItems: "center", justifyContent: "center",
+    backgroundColor: C.primary, alignItems: "center", justifyContent: "center",
   },
-  sendText: { color: C.white, fontSize: 18 },
 });

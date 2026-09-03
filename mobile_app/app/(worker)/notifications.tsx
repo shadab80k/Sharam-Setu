@@ -1,21 +1,30 @@
 /**
- * Notifications — bell list with mark-read / mark-all-read.
+ * Notifications (V3) — ListRows with type icons, unread orange tint, mark read.
  */
 import React from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "@/store";
+import { toAppRoute } from "@/utils/routes";
 import { timeAgo } from "@/utils";
 import { Button } from "@/components/ui/Button";
-import { EmptyState } from "@/components/ui/Feedback";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonRow } from "@/components/ui/Avatar";
+import { ListRow } from "@/components/ui/ListRow";
+import { Icon } from "@/components/ui/Icon";
 import { C, T, R, S } from "@/theme/tokens";
 import type { NotificationType } from "@/types";
 
-const TYPE_EMOJI: Record<NotificationType, string> = {
-  job: "🧰", payment: "💰", trust: "🛡️", verification: "🪪",
-  application: "📋", safety: "⚠️", ai: "✨", system: "🔔",
+const TYPE_META: Record<NotificationType, { icon: string; tone: "primary" | "green" | "amber" | "red" | "blue" | "purple" | "muted" }> = {
+  job: { icon: "briefcase-outline", tone: "primary" },
+  payment: { icon: "wallet-outline", tone: "green" },
+  trust: { icon: "shield-checkmark-outline", tone: "blue" },
+  verification: { icon: "ribbon-outline", tone: "purple" },
+  application: { icon: "documents-outline", tone: "blue" },
+  safety: { icon: "warning-outline", tone: "red" },
+  ai: { icon: "sparkles", tone: "purple" },
+  system: { icon: "notifications-outline", tone: "muted" },
 };
 
 export default function WorkerNotifications() {
@@ -36,55 +45,56 @@ export default function WorkerNotifications() {
   const unread = sorted.filter((n) => !n.read).length;
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={styles.head}>
-        <Pressable onPress={() => router.back()} hitSlop={12}><Text style={styles.backText}>← Back</Text></Pressable>
-        <Text style={styles.title}>Notifications</Text>
+    <SafeAreaView style={st.safe} edges={["top"]}>
+      <View style={st.head}>
+        <Pressable onPress={() => router.back()} hitSlop={12} style={st.backBtn}>
+          <Icon name="chevron-back" size={20} color={C.text} />
+        </Pressable>
+        <Text style={st.title}>Notifications</Text>
         {unread > 0 && (
-          <Button label={`Mark all (${unread})`} variant="link" size="sm" onPress={() => markAllRead(user.id)} />
+          <Button label={`Mark all (${unread})`} variant="text" size="sm" onPress={() => markAllRead(user.id)} />
         )}
       </View>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={st.scroll}>
         {loading && sorted.length === 0 ? (
           Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)
         ) : sorted.length === 0 ? (
-          <EmptyState icon={<Text style={{ fontSize: 40 }}>🔔</Text>} message="No notifications yet.\nWe'll ping you about jobs and payments." />
+          <EmptyState icon="notifications-off-outline" message="No notifications yet.\nWe'll ping you about jobs and payments." />
         ) : (
-          sorted.map((n) => (
-            <Pressable
-              key={n.id}
-              style={[styles.row, !n.read && styles.rowUnread]}
-              onPress={() => markRead(n.id)}
-            >
-              <Text style={{ fontSize: 22 }}>{TYPE_EMOJI[n.type] ?? "🔔"}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.rowTitle, !n.read && { color: C.navy900 }]}>{n.title}</Text>
-                <Text style={styles.rowMsg} numberOfLines={3}>{n.message}</Text>
-                <Text style={styles.rowTime}>{timeAgo(n.createdAt)}</Text>
-              </View>
-              {!n.read && <View style={styles.unreadDot} />}
-            </Pressable>
-          ))
+          <View style={st.listCard}>
+            {sorted.map((n, i) => {
+              const meta = TYPE_META[n.type] ?? TYPE_META.system;
+              return (
+                <ListRow
+                  key={n.id}
+                  icon={meta.icon as never}
+                  iconTone={meta.tone}
+                  title={n.title}
+                  sub={n.message}
+                  sub2={timeAgo(n.createdAt)}
+                  divider={i < sorted.length - 1}
+                  style={n.read ? undefined : { backgroundColor: C.primarySoft }}
+                  onPress={() => markRead(n.id)}
+                />
+              );
+            })}
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
   head: { flexDirection: "row", alignItems: "center", gap: S.md, paddingHorizontal: S.lg, paddingTop: S.lg, paddingBottom: S.sm },
-  backText: { color: C.gray600, fontSize: T.sm, fontWeight: "700" },
-  title: { flex: 1, fontSize: T.xl, fontWeight: "900", color: C.navy900 },
-  scroll: { padding: S.lg, paddingTop: S.sm, paddingBottom: S.xxxl, gap: S.md },
-  row: {
-    flexDirection: "row", gap: S.md,
-    backgroundColor: C.white, borderRadius: R.md, borderWidth: 1, borderColor: C.gray200,
-    padding: S.md, alignItems: "flex-start",
+  backBtn: { width: 38, height: 38, borderRadius: R.pill, backgroundColor: C.surface, alignItems: "center", justifyContent: "center" },
+  title: { flex: 1, fontSize: T.title + 2, fontWeight: "800", color: C.text },
+  scroll: { padding: S.lg, paddingTop: S.sm, paddingBottom: S.xxxl },
+  listCard: {
+    backgroundColor: C.surface,
+    borderRadius: R.lg,
+    paddingHorizontal: S.md,
+    paddingVertical: S.xs,
   },
-  rowUnread: { borderColor: C.orange500, backgroundColor: C.orange100 },
-  rowTitle: { fontSize: T.sm, fontWeight: "800", color: C.gray700 },
-  rowMsg: { fontSize: T.xs, color: C.gray600, marginTop: 2, lineHeight: 17 },
-  rowTime: { fontSize: T.xs, color: C.gray500, marginTop: 4 },
-  unreadDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: C.orange600, marginTop: 4 },
 });

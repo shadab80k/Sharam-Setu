@@ -1,6 +1,6 @@
 /**
- * Report a Safety Issue — category, severity, description.
- * Uses POST /api/reports (same as web).
+ * Report a Safety Issue (V3) — category/severity Pickers + TextArea,
+ * optional job/contractor chips. Same POST /api/reports contract.
  */
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
@@ -8,26 +8,24 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "@/store";
 import { Button } from "@/components/ui/Button";
-import { Input, Chip } from "@/components/ui/Input";
+import { Chip } from "@/components/ui/Chips";
+import { Field, TextArea } from "@/components/ui/Field";
+import { Picker } from "@/components/ui/Picker";
+import { Icon } from "@/components/ui/Icon";
 import { C, T, R, S } from "@/theme/tokens";
 import type { ReportCategory, ReportSeverity } from "@/types";
 
-const CATEGORIES: { value: ReportCategory; label: string; emoji: string }[] = [
-  { value: "unsafe-workplace", label: "Unsafe workplace", emoji: "⚠️" },
-  { value: "payment-dispute", label: "Payment dispute", emoji: "💰" },
-  { value: "fake-job", label: "Fake job", emoji: "🚫" },
-  { value: "fake-worker", label: "Fake worker", emoji: "🧍" },
-  { value: "harassment", label: "Harassment", emoji: "🚨" },
-  { value: "fraud", label: "Fraud", emoji: "🎭" },
-  { value: "other", label: "Other", emoji: "📦" },
+const CATEGORIES: { value: ReportCategory; label: string }[] = [
+  { value: "unsafe-workplace", label: "Unsafe workplace" },
+  { value: "payment-dispute", label: "Payment dispute" },
+  { value: "fake-job", label: "Fake job" },
+  { value: "fake-worker", label: "Fake worker" },
+  { value: "harassment", label: "Harassment" },
+  { value: "fraud", label: "Fraud" },
+  { value: "other", label: "Other" },
 ];
 
-const SEVERITIES: { value: ReportSeverity; label: string; tone: string }[] = [
-  { value: "low", label: "Low", tone: C.gray600 },
-  { value: "medium", label: "Medium", tone: C.amber500 },
-  { value: "high", label: "High", tone: C.orange600 },
-  { value: "critical", label: "Critical", tone: C.red600 },
-];
+const SEVERITIES: ReportSeverity[] = ["low", "medium", "high", "critical"];
 
 export default function WorkerReport() {
   const router = useRouter();
@@ -64,47 +62,52 @@ export default function WorkerReport() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Pressable onPress={() => router.back()} hitSlop={12}><Text style={styles.backText}>← Back</Text></Pressable>
-        <Text style={styles.title}>Report an Issue</Text>
-        <Text style={styles.sub}>
+    <SafeAreaView style={st.safe} edges={["top"]}>
+      <ScrollView contentContainerStyle={st.scroll} keyboardShouldPersistTaps="handled">
+        <Pressable onPress={() => router.back()} hitSlop={12} style={st.backBtn}>
+          <Icon name="chevron-back" size={20} color={C.text} />
+        </Pressable>
+        <View style={st.titleRow}>
+          <View style={st.titleIcon}>
+            <Icon name="shield-outline" size={22} color={C.red} />
+          </View>
+          <Text style={st.title}>Report an Issue</Text>
+        </View>
+        <Text style={st.sub}>
           Your report is confidential. Admin reviews every report, and false reports reduce your trust score.
         </Text>
 
-        <Text style={styles.label}>What happened?</Text>
-        <View style={styles.chipWrap}>
-          {CATEGORIES.map((c) => (
-            <Chip key={c.value} label={`${c.emoji} ${c.label}`} active={category === c.value} onPress={() => setCategory(c.value)} small />
-          ))}
-        </View>
+        <Picker
+          label="What happened?"
+          value={CATEGORIES.find((c) => c.value === category)?.label ?? ""}
+          options={CATEGORIES.map((c) => ({ value: c.label, label: c.label }))}
+          onChange={(label) => setCategory(CATEGORIES.find((c) => c.label === label)?.value ?? "other")}
+        />
 
-        <Text style={styles.label}>How serious is it?</Text>
-        <View style={styles.chipWrap}>
-          {SEVERITIES.map((s) => (
-            <Chip key={s.value} label={s.label} active={severity === s.value} onPress={() => setSeverity(s.value)} small />
-          ))}
-        </View>
+        <Picker
+          label="How serious is it?"
+          value={severity}
+          options={SEVERITIES.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))}
+          onChange={(v) => setSeverity(v as ReportSeverity)}
+        />
 
-        <Input
+        <TextArea
           label="Describe the issue (min 10 characters)"
           value={description}
           onChangeText={setDescription}
-          multiline
           placeholder="Tell us what happened…"
-          style={{ height: 110, textAlignVertical: "top" }}
         />
 
-        <Text style={styles.label}>Related job (optional)</Text>
-        <View style={styles.chipWrap}>
+        <Text style={st.label}>Related job (optional)</Text>
+        <View style={st.chipWrap}>
           <Chip label="None" active={jobId === ""} onPress={() => setJobId("")} small />
           {myJobs.slice(0, 8).map((j) => (
             <Chip key={j.id} label={j.title} active={jobId === j.id} onPress={() => setJobId(j.id)} small />
           ))}
         </View>
 
-        <Text style={styles.label}>About a contractor? (optional)</Text>
-        <View style={styles.chipWrap}>
+        <Text style={st.label}>About a contractor? (optional)</Text>
+        <View style={st.chipWrap}>
           <Chip label="None" active={targetUserId === ""} onPress={() => setTargetUserId("")} small />
           {contractors.slice(0, 8).map((c) => (
             <Chip key={c.id} label={c.name} active={targetUserId === c.id} onPress={() => setTargetUserId(c.id)} small />
@@ -123,12 +126,14 @@ export default function WorkerReport() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
-  scroll: { padding: S.lg, paddingTop: S.md, paddingBottom: S.xxxl, gap: S.md },
-  backText: { color: C.gray600, fontSize: T.sm, fontWeight: "700" },
-  title: { fontSize: T.xxl, fontWeight: "900", color: C.navy900, marginTop: S.sm },
-  sub: { fontSize: T.sm, color: C.gray500, lineHeight: 19, marginBottom: S.md },
-  label: { fontSize: T.sm, fontWeight: "700", color: C.navy900, marginTop: S.sm },
-  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: S.sm },
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
+  scroll: { padding: S.lg, paddingTop: S.md, paddingBottom: S.xxxl },
+  backBtn: { width: 38, height: 38, borderRadius: R.pill, backgroundColor: C.surface, alignItems: "center", justifyContent: "center", alignSelf: "flex-start" },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: S.md, marginTop: S.md },
+  titleIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: C.redSoft, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: T.title, fontWeight: "800", color: C.text },
+  sub: { fontSize: T.caption + 1, color: C.text2, lineHeight: 20, marginVertical: S.md },
+  label: { fontSize: T.caption, fontWeight: "700", color: C.text, marginBottom: S.sm, marginTop: S.xs },
+  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: S.sm, marginBottom: S.md },
 });

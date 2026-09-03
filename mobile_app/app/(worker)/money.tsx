@@ -1,6 +1,6 @@
 /**
- * Worker Money — one tab, three segments:
- * Income ledger / Expenses tracker / Savings goals.
+ * Worker Money (V3) — segmented Income/Expenses/Savings tabs, ledger ListRows,
+ * goal cards with progress + Add Money, 4 Sheets for create flows.
  */
 import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
@@ -10,19 +10,25 @@ import { formatINR, formatDate } from "@/utils";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
-import { Sheet, Tabs, ProgressBar, EmptyState } from "@/components/ui/Feedback";
-import { Input, Chip } from "@/components/ui/Input";
+import { Sheet } from "@/components/ui/Sheet";
+import { Tabs } from "@/components/ui/Tabs";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Chip } from "@/components/ui/Chips";
+import { Field } from "@/components/ui/Field";
+import { ListRow } from "@/components/ui/ListRow";
+import { Icon } from "@/components/ui/Icon";
 import { C, T, R, S } from "@/theme/tokens";
 import type { ExpenseCategory, SavingsGoal } from "@/types";
 
-const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string; emoji: string }[] = [
-  { value: "food", label: "Food", emoji: "🍚" },
-  { value: "transport", label: "Transport", emoji: "🚌" },
-  { value: "rent", label: "Rent", emoji: "🏠" },
-  { value: "family", label: "Family", emoji: "👨‍👩‍👧" },
-  { value: "tools", label: "Tools", emoji: "🔧" },
-  { value: "medical", label: "Medical", emoji: "💊" },
-  { value: "other", label: "Other", emoji: "📦" },
+const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string; icon: string }[] = [
+  { value: "food", label: "Food", icon: "restaurant-outline" },
+  { value: "transport", label: "Transport", icon: "bus-outline" },
+  { value: "rent", label: "Rent", icon: "home-outline" },
+  { value: "family", label: "Family", icon: "people-outline" },
+  { value: "tools", label: "Tools", icon: "construct-outline" },
+  { value: "medical", label: "Medical", icon: "medkit-outline" },
+  { value: "other", label: "Other", icon: "cube-outline" },
 ];
 
 export default function WorkerMoney() {
@@ -42,19 +48,15 @@ export default function WorkerMoney() {
 
   const [tab, setTab] = useState("income");
 
-  // Income sheet
   const [incomeOpen, setIncomeOpen] = useState(false);
   const [incomeForm, setIncomeForm] = useState({ jobId: "", amount: "", date: new Date().toISOString().slice(0, 10), status: "paid" as "paid" | "pending", method: "UPI" });
 
-  // Expense sheet
   const [expOpen, setExpOpen] = useState(false);
   const [expForm, setExpForm] = useState({ category: "food" as ExpenseCategory, amount: "", date: new Date().toISOString().slice(0, 10), note: "" });
 
-  // Goal sheet
   const [goalOpen, setGoalOpen] = useState(false);
   const [goalForm, setGoalForm] = useState({ name: "", targetAmount: "", currentAmount: "0", targetDate: "" });
 
-  // Deposit sheet
   const [depositOpen, setDepositOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<SavingsGoal | null>(null);
   const [depositAmount, setDepositAmount] = useState("");
@@ -129,71 +131,75 @@ export default function WorkerMoney() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={styles.head}>
-        <Text style={styles.title}>My Money</Text>
+    <SafeAreaView style={st.safe} edges={["top"]}>
+      <View style={st.head}>
+        <Text style={st.title}>My Money</Text>
       </View>
 
       {/* Summary */}
-      <View style={styles.sumRow}>
-        <View style={[styles.sumCell, { flex: 1.2 }]}>
-          <Text style={styles.sumLabel}>Net savings</Text>
-          <Text style={[styles.sumValue, { color: netSavings >= 0 ? C.green600 : C.red600 }]}>{formatINR(netSavings)}</Text>
+      <View style={st.sumRow}>
+        <View style={[st.sumCell, { flex: 1.2 }]}>
+          <Text style={st.sumLabel}>Net savings</Text>
+          <Text style={[st.sumValue, { color: netSavings >= 0 ? C.green : C.red }]}>{formatINR(netSavings)}</Text>
         </View>
-        <View style={styles.sumCell}>
-          <Text style={styles.sumLabel}>Earned</Text>
-          <Text style={styles.sumValue}>{formatINR(totalIncome)}</Text>
+        <View style={st.sumCell}>
+          <Text style={st.sumLabel}>Earned</Text>
+          <Text style={st.sumValue}>{formatINR(totalIncome)}</Text>
         </View>
-        <View style={styles.sumCell}>
-          <Text style={styles.sumLabel}>Spent</Text>
-          <Text style={styles.sumValue}>{formatINR(totalExpenses)}</Text>
+        <View style={st.sumCell}>
+          <Text style={st.sumLabel}>Spent</Text>
+          <Text style={st.sumValue}>{formatINR(totalExpenses)}</Text>
         </View>
       </View>
 
-      <Tabs
-        value={tab}
-        onChange={setTab}
-        items={[
-          { value: "income", label: "Income" },
-          { value: "expenses", label: "Expenses" },
-          { value: "savings", label: "Savings" },
-        ]}
-      />
+      <View style={st.tabPad}>
+        <Tabs
+          value={tab}
+          onChange={setTab}
+          items={[
+            { value: "income", label: "Income", count: payments.length },
+            { value: "expenses", label: "Expenses", count: expenses.length },
+            { value: "savings", label: "Savings", count: savingsGoals.length },
+          ]}
+        />
+      </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={st.scroll}>
         {/* ---------- INCOME ---------- */}
         {tab === "income" && (
           <>
-            <Button label="+ Record Income" onPress={() => setIncomeOpen(true)} fullWidth />
+            <Button label="Record Income" onPress={() => setIncomeOpen(true)} icon="add" fullWidth />
             {pendingIncome > 0 && (
-              <View style={styles.pendingBanner}>
-                <Text style={styles.pendingText}>{formatINR(pendingIncome)} pending from contractors</Text>
+              <View style={st.pendingBanner}>
+                <Icon name="hourglass-outline" size={15} color={C.amber} />
+                <Text style={st.pendingText}>{formatINR(pendingIncome)} pending from contractors</Text>
               </View>
             )}
             {payments.length === 0 ? (
-              <EmptyState icon={<Text style={{ fontSize: 40 }}>💵</Text>} message="No income records yet.\nRecord wages you receive to track earnings." />
+              <EmptyState icon="wallet-outline" tone="green" message="No income records yet.\nRecord wages you receive to track earnings." />
             ) : (
-              payments.map((p) => {
-                const job = jobs.find((j) => j.id === p.jobId);
-                return (
-                  <View key={p.id} style={styles.ledgerRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.ledgerTitle} numberOfLines={1}>{job?.title ?? "Wage record"}</Text>
-                      <Text style={styles.ledgerMeta}>
-                        {formatDate(p.paidDate ?? p.dueDate)} · {p.method}
-                      </Text>
-                    </View>
-                    <Text style={[styles.ledgerAmount, { color: p.status === "paid" ? C.green600 : C.orange600 }]}>
-                      {formatINR(p.amount)}
-                    </Text>
-                    {p.status !== "paid" ? (
-                      <Button label="Received" variant="success" size="sm" onPress={() => markReceived(p.id)} />
-                    ) : (
-                      <StatusBadge status={p.status} />
-                    )}
-                  </View>
-                );
-              })
+              <View style={st.ledgerCard}>
+                {payments.map((p, i) => {
+                  const job = jobs.find((j) => j.id === p.jobId);
+                  return (
+                    <ListRow
+                      key={p.id}
+                      icon="wallet-outline"
+                      iconTone={p.status === "paid" ? "green" : "amber"}
+                      title={job?.title ?? "Wage record"}
+                      sub={`${formatDate(p.paidDate ?? p.dueDate)} · ${p.method}`}
+                      trailing={
+                        p.status !== "paid" ? (
+                          <Button label="Received" variant="secondary" size="sm" onPress={() => markReceived(p.id)} />
+                        ) : (
+                          <StatusBadge status={p.status} />
+                        )
+                      }
+                      divider={i < payments.length - 1}
+                    />
+                  );
+                })}
+              </View>
             )}
           </>
         )}
@@ -201,26 +207,30 @@ export default function WorkerMoney() {
         {/* ---------- EXPENSES ---------- */}
         {tab === "expenses" && (
           <>
-            <Button label="+ Add Expense" onPress={() => setExpOpen(true)} fullWidth />
+            <Button label="Add Expense" onPress={() => setExpOpen(true)} icon="add" fullWidth />
             {expenses.length === 0 ? (
-              <EmptyState icon={<Text style={{ fontSize: 40 }}>🧾</Text>} message="No expenses recorded.\nTrack spending to see real savings." />
+              <EmptyState icon="receipt-outline" tone="amber" message="No expenses recorded.\nTrack spending to see real savings." />
             ) : (
-              expenses.map((e) => {
-                const cat = EXPENSE_CATEGORIES.find((c) => c.value === e.category);
-                return (
-                  <View key={e.id} style={styles.ledgerRow}>
-                    <Text style={{ fontSize: 24 }}>{cat?.emoji ?? "📦"}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.ledgerTitle}>{cat?.label ?? e.category}{e.note ? ` — ${e.note}` : ""}</Text>
-                      <Text style={styles.ledgerMeta}>{formatDate(e.date)}</Text>
-                    </View>
-                    <Text style={[styles.ledgerAmount, { color: C.red600 }]}>−{formatINR(e.amount)}</Text>
-                    <Pressable onPress={() => deleteExpense(e.id)} hitSlop={10}>
-                      <Text style={styles.deleteText}>✕</Text>
-                    </Pressable>
-                  </View>
-                );
-              })
+              <View style={st.ledgerCard}>
+                {expenses.map((e, i) => {
+                  const cat = EXPENSE_CATEGORIES.find((c) => c.value === e.category);
+                  return (
+                    <ListRow
+                      key={e.id}
+                      icon={(cat?.icon ?? "cube-outline") as never}
+                      iconTone="red"
+                      title={`${cat?.label ?? e.category}${e.note ? ` — ${e.note}` : ""}`}
+                      sub={formatDate(e.date)}
+                      trailing={
+                        <Pressable onPress={() => deleteExpense(e.id)} hitSlop={10} style={st.deleteBtn}>
+                          <Icon name="close" size={15} color={C.text3} />
+                        </Pressable>
+                      }
+                      divider={i < expenses.length - 1}
+                    />
+                  );
+                })}
+              </View>
             )}
           </>
         )}
@@ -228,9 +238,9 @@ export default function WorkerMoney() {
         {/* ---------- SAVINGS ---------- */}
         {tab === "savings" && (
           <>
-            <Button label="+ New Savings Goal" onPress={() => setGoalOpen(true)} fullWidth />
+            <Button label="New Savings Goal" onPress={() => setGoalOpen(true)} icon="add" fullWidth />
             {savingsGoals.length === 0 ? (
-              <EmptyState icon={<Text style={{ fontSize: 40 }}>🎯</Text>} message="No goals yet.\nSet a target — a phone, a cycle, an emergency fund." />
+              <EmptyState icon="flag-outline" tone="primary" message="No goals yet.\nSet a target — a phone, a cycle, an emergency fund." />
             ) : (
               savingsGoals.map((g) => {
                 const pct = Math.min(100, (g.currentAmount / g.targetAmount) * 100);
@@ -239,11 +249,11 @@ export default function WorkerMoney() {
                     <CardHeader
                       title={g.name}
                       subtitle={`Target ${formatINR(g.targetAmount)} by ${formatDate(g.targetDate)}`}
-                      right={<Text style={styles.goalPct}>{Math.round(pct)}%</Text>}
+                      right={<Text style={st.goalPct}>{Math.round(pct)}%</Text>}
                     />
-                    <ProgressBar value={pct} tone={pct >= 100 ? C.green600 : C.orange600} />
-                    <View style={styles.goalFoot}>
-                      <Text style={styles.goalSaved}>{formatINR(g.currentAmount)} saved</Text>
+                    <ProgressBar value={pct} tone={pct >= 100 ? C.green : C.primary} />
+                    <View style={st.goalFoot}>
+                      <Text style={st.goalSaved}>{formatINR(g.currentAmount)} saved</Text>
                       <Button
                         label="Add Money"
                         variant="secondary"
@@ -261,25 +271,25 @@ export default function WorkerMoney() {
 
       {/* Income sheet */}
       <Sheet open={incomeOpen} onClose={() => setIncomeOpen(false)} title="Record Income">
-        <Text style={styles.sheetLabel}>Which job is this from?</Text>
+        <Text style={st.sheetLabel}>Which job is this from?</Text>
         {hiredJobs.length === 0 ? (
-          <Text style={styles.sheetHint}>You'll see jobs here once you're hired for one.</Text>
+          <Text style={st.sheetHint}>You'll see jobs here once you're hired for one.</Text>
         ) : (
-          <View style={styles.chipWrap}>
+          <View style={st.chipWrap}>
             {hiredJobs.map((j) => (
               <Chip key={j.id} label={j.title} active={incomeForm.jobId === j.id} onPress={() => setIncomeForm({ ...incomeForm, jobId: j.id })} small />
             ))}
           </View>
         )}
-        <Input label="Amount (₹)" value={incomeForm.amount} onChangeText={(v) => setIncomeForm({ ...incomeForm, amount: v.replace(/\D/g, "") })} keyboardType="number-pad" placeholder="500" />
-        <Input label="Date" value={incomeForm.date} onChangeText={(v) => setIncomeForm({ ...incomeForm, date: v })} placeholder="YYYY-MM-DD" />
-        <Text style={styles.sheetLabel}>Payment status</Text>
-        <View style={styles.chipWrap}>
+        <Field label="Amount (₹)" value={incomeForm.amount} onChangeText={(v: string) => setIncomeForm({ ...incomeForm, amount: v.replace(/\D/g, "") })} keyboardType="number-pad" placeholder="500" />
+        <Field label="Date" value={incomeForm.date} onChangeText={(v: string) => setIncomeForm({ ...incomeForm, date: v })} placeholder="YYYY-MM-DD" />
+        <Text style={st.sheetLabel}>Payment status</Text>
+        <View style={st.chipWrap}>
           <Chip label="Received" active={incomeForm.status === "paid"} onPress={() => setIncomeForm({ ...incomeForm, status: "paid" })} />
           <Chip label="Pending" active={incomeForm.status === "pending"} onPress={() => setIncomeForm({ ...incomeForm, status: "pending" })} />
         </View>
-        <Text style={styles.sheetLabel}>Method</Text>
-        <View style={styles.chipWrap}>
+        <Text style={st.sheetLabel}>Method</Text>
+        <View style={st.chipWrap}>
           {["UPI", "Cash", "Bank"].map((m) => (
             <Chip key={m} label={m} active={incomeForm.method === m} onPress={() => setIncomeForm({ ...incomeForm, method: m })} small />
           ))}
@@ -289,38 +299,38 @@ export default function WorkerMoney() {
 
       {/* Expense sheet */}
       <Sheet open={expOpen} onClose={() => setExpOpen(false)} title="Add Expense">
-        <Text style={styles.sheetLabel}>Category</Text>
-        <View style={styles.chipWrap}>
+        <Text style={st.sheetLabel}>Category</Text>
+        <View style={st.chipWrap}>
           {EXPENSE_CATEGORIES.map((c) => (
-            <Chip key={c.value} label={`${c.emoji} ${c.label}`} active={expForm.category === c.value} onPress={() => setExpForm({ ...expForm, category: c.value })} small />
+            <Chip key={c.value} label={c.label} active={expForm.category === c.value} onPress={() => setExpForm({ ...expForm, category: c.value })} small />
           ))}
         </View>
-        <Input label="Amount (₹)" value={expForm.amount} onChangeText={(v) => setExpForm({ ...expForm, amount: v.replace(/\D/g, "") })} keyboardType="number-pad" placeholder="100" />
-        <Input label="Date" value={expForm.date} onChangeText={(v) => setExpForm({ ...expForm, date: v })} placeholder="YYYY-MM-DD" />
-        <Input label="Note (optional)" value={expForm.note} onChangeText={(v) => setExpForm({ ...expForm, note: v })} placeholder="Lunch at site" />
+        <Field label="Amount (₹)" value={expForm.amount} onChangeText={(v: string) => setExpForm({ ...expForm, amount: v.replace(/\D/g, "") })} keyboardType="number-pad" placeholder="100" />
+        <Field label="Date" value={expForm.date} onChangeText={(v: string) => setExpForm({ ...expForm, date: v })} placeholder="YYYY-MM-DD" />
+        <Field label="Note (optional)" value={expForm.note} onChangeText={(v: string) => setExpForm({ ...expForm, note: v })} placeholder="Lunch at site" />
         <Button label="Save Expense" onPress={handleAddExpense} disabled={!expForm.amount} fullWidth />
       </Sheet>
 
       {/* Goal sheet */}
       <Sheet open={goalOpen} onClose={() => setGoalOpen(false)} title="New Savings Goal">
-        <Input label="Goal name" value={goalForm.name} onChangeText={(v) => setGoalForm({ ...goalForm, name: v })} placeholder="New phone" />
-        <Input label="Target amount (₹)" value={goalForm.targetAmount} onChangeText={(v) => setGoalForm({ ...goalForm, targetAmount: v.replace(/\D/g, "") })} keyboardType="number-pad" placeholder="15000" />
-        <Input label="Already saved (₹)" value={goalForm.currentAmount} onChangeText={(v) => setGoalForm({ ...goalForm, currentAmount: v.replace(/\D/g, "") })} keyboardType="number-pad" placeholder="0" />
-        <Input label="Target date (optional)" value={goalForm.targetDate} onChangeText={(v) => setGoalForm({ ...goalForm, targetDate: v })} placeholder="YYYY-MM-DD" />
+        <Field label="Goal name" value={goalForm.name} onChangeText={(v: string) => setGoalForm({ ...goalForm, name: v })} placeholder="New phone" />
+        <Field label="Target amount (₹)" value={goalForm.targetAmount} onChangeText={(v: string) => setGoalForm({ ...goalForm, targetAmount: v.replace(/\D/g, "") })} keyboardType="number-pad" placeholder="15000" />
+        <Field label="Already saved (₹)" value={goalForm.currentAmount} onChangeText={(v: string) => setGoalForm({ ...goalForm, currentAmount: v.replace(/\D/g, "") })} keyboardType="number-pad" placeholder="0" />
+        <Field label="Target date (optional)" value={goalForm.targetDate} onChangeText={(v: string) => setGoalForm({ ...goalForm, targetDate: v })} placeholder="YYYY-MM-DD" />
         <Button label="Create Goal" onPress={handleAddGoal} disabled={!goalForm.name || !goalForm.targetAmount} fullWidth />
       </Sheet>
 
       {/* Deposit sheet */}
       <Sheet open={depositOpen} onClose={() => setDepositOpen(false)} title={`Add to: ${selectedGoal?.name ?? ""}`}>
-        <Input
+        <Field
           label="Deposit amount (₹)"
           value={depositAmount}
-          onChangeText={(v) => setDepositAmount(v.replace(/\D/g, ""))}
+          onChangeText={(v: string) => setDepositAmount(v.replace(/\D/g, ""))}
           keyboardType="number-pad"
           placeholder="500"
         />
         {selectedGoal && (
-          <Text style={styles.sheetHint}>
+          <Text style={st.sheetHint}>
             {formatINR(selectedGoal.currentAmount)} of {formatINR(selectedGoal.targetAmount)} saved
           </Text>
         )}
@@ -330,47 +340,43 @@ export default function WorkerMoney() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
   head: { paddingHorizontal: S.lg, paddingTop: S.lg, paddingBottom: S.sm },
-  title: { fontSize: T.xxl, fontWeight: "900", color: C.navy900 },
+  tabPad: { paddingHorizontal: S.lg, marginBottom: S.sm },
+  title: { fontSize: T.title + 4, fontWeight: "800", color: C.text },
   sumRow: { flexDirection: "row", gap: S.sm, paddingHorizontal: S.lg, marginBottom: S.sm },
   sumCell: {
     flex: 1,
-    backgroundColor: C.white,
+    backgroundColor: C.surface,
     borderRadius: R.md,
-    borderWidth: 1,
-    borderColor: C.gray200,
     padding: S.md,
     gap: 2,
   },
-  sumLabel: { fontSize: T.xs, color: C.gray500, fontWeight: "600" },
-  sumValue: { fontSize: T.lg, fontWeight: "900", color: C.navy900 },
+  sumLabel: { fontSize: T.tiny, color: C.text3, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 },
+  sumValue: { fontSize: T.body + 2, fontWeight: "800", color: C.text },
   scroll: { padding: S.lg, paddingTop: S.sm, paddingBottom: S.xxxl, gap: S.md },
   pendingBanner: {
-    backgroundColor: C.orange100,
-    borderRadius: R.md,
-    padding: S.md,
-  },
-  pendingText: { color: C.orange600, fontSize: T.sm, fontWeight: "700", textAlign: "center" },
-  ledgerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: S.md,
-    backgroundColor: C.white,
+    justifyContent: "center",
+    gap: S.sm,
+    backgroundColor: C.amberSoft,
     borderRadius: R.md,
-    borderWidth: 1,
-    borderColor: C.gray200,
     padding: S.md,
   },
-  ledgerTitle: { fontSize: T.sm, fontWeight: "800", color: C.navy900 },
-  ledgerMeta: { fontSize: T.xs, color: C.gray500, marginTop: 2 },
-  ledgerAmount: { fontSize: T.base, fontWeight: "900" },
-  deleteText: { color: C.gray300, fontSize: T.md, fontWeight: "700", paddingHorizontal: S.xs },
-  goalPct: { fontSize: T.lg, fontWeight: "900", color: C.orange600 },
+  pendingText: { color: C.amber, fontSize: T.caption + 1, fontWeight: "700" },
+  ledgerCard: {
+    backgroundColor: C.surface,
+    borderRadius: R.lg,
+    paddingHorizontal: S.md,
+    paddingVertical: S.xs,
+  },
+  deleteBtn: { width: 32, height: 32, borderRadius: R.pill, backgroundColor: C.muted, alignItems: "center", justifyContent: "center" },
+  goalPct: { fontSize: T.body + 2, fontWeight: "800", color: C.primary },
   goalFoot: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: S.sm },
-  goalSaved: { fontSize: T.sm, fontWeight: "700", color: C.green600 },
-  sheetLabel: { fontSize: T.sm, fontWeight: "700", color: C.navy900, marginBottom: S.sm },
-  sheetHint: { fontSize: T.xs, color: C.gray500, marginBottom: S.sm },
-  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: S.sm, marginBottom: S.lg },
+  goalSaved: { fontSize: T.caption + 1, fontWeight: "700", color: C.green },
+  sheetLabel: { fontSize: T.caption, fontWeight: "700", color: C.text, marginBottom: S.sm, marginTop: S.xs },
+  sheetHint: { fontSize: T.caption, color: C.text3, marginBottom: S.md },
+  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: S.sm, marginBottom: S.md },
 });

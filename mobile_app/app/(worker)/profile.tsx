@@ -1,7 +1,6 @@
 /**
- * Worker Profile — avatar upload (camera/gallery), bio & skills editing,
- * certifications, details edit sheet, and links to everything else
- * (trust, career, applications, notifications, report, settings, logout).
+ * Worker Profile (V3) — identity hero with avatar upload, stat tiles, About
+ * edit, skills chips, cert ListRows, links ListRow, details/skill/cert Sheets.
  */
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from "react-native";
@@ -16,8 +15,13 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { Sheet } from "@/components/ui/Feedback";
-import { Input, Chip } from "@/components/ui/Input";
+import { StatTile, StatRow } from "@/components/ui/StatTile";
+import { Sheet } from "@/components/ui/Sheet";
+import { Field, TextArea } from "@/components/ui/Field";
+import { Picker } from "@/components/ui/Picker";
+import { Chip } from "@/components/ui/Chips";
+import { ListRow } from "@/components/ui/ListRow";
+import { Icon } from "@/components/ui/Icon";
 import { C, T, R, S } from "@/theme/tokens";
 
 export default function WorkerProfile() {
@@ -110,23 +114,29 @@ export default function WorkerProfile() {
   const verifiedBadge = verifications.some((v) => v.userId === user.id && v.status === "verified");
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+    <SafeAreaView style={st.safe} edges={["top"]}>
+      <ScrollView contentContainerStyle={st.scroll}>
         {/* Identity card */}
-        <View style={styles.identity}>
+        <View style={st.identity}>
           <Pressable onPress={() => pickAvatar(false)} disabled={avatarBusy}>
             <Avatar src={user.avatar} name={user.name} size={84} />
-            <View style={styles.camBadge}><Text style={styles.camText}>📷</Text></View>
+            <View style={st.camBadge}>
+              <Icon name="camera" size={13} color={C.onPrimary} />
+            </View>
           </Pressable>
           <View style={{ flex: 1 }}>
-            <View style={styles.nameRow}>
-              <Text style={styles.name}>{user.name}</Text>
-              {verifiedBadge && <Text>✅</Text>}
+            <View style={st.nameRow}>
+              <Text style={st.name}>{user.name}</Text>
+              {verifiedBadge && (
+                <View style={st.verifiedBadge}>
+                  <Icon name="checkmark" size={11} color={C.onPrimary} />
+                </View>
+              )}
             </View>
-            <Text style={styles.meta}>
+            <Text style={st.meta}>
               {profile.profession} · {profile.experienceYears} yrs · {city.name}
             </Text>
-            <Text style={styles.meta}>{formatINR(profile.expectedDailyWage)}/day expected</Text>
+            <Text style={st.meta}>{formatINR(profile.expectedDailyWage)}/day expected</Text>
             <View style={{ marginTop: S.sm, flexDirection: "row", gap: S.sm }}>
               <Badge label={`Trust ${profile.trustScore}`} tone="green" />
               {profile.rating > 0 && <Badge label={`★ ${profile.rating.toFixed(1)}`} tone="amber" />}
@@ -135,25 +145,25 @@ export default function WorkerProfile() {
         </View>
 
         {/* Quick stats */}
-        <View style={styles.statRow}>
-          <View style={styles.statCell}><Text style={styles.statNum}>{activeApps}</Text><Text style={styles.statLabel}>Active applications</Text></View>
-          <View style={styles.statCell}><Text style={styles.statNum}>{profile.completedJobs}</Text><Text style={styles.statLabel}>Jobs done</Text></View>
-          <View style={styles.statCell}><Text style={styles.statNum}>{profile.profileCompletion}%</Text><Text style={styles.statLabel}>Profile complete</Text></View>
-        </View>
+        <StatRow>
+          <StatTile label="Active" value={String(activeApps)} sub="applications" tone="blue" />
+          <StatTile label="Jobs" value={String(profile.completedJobs)} sub="completed" tone="green" />
+          <StatTile label="Profile" value={`${profile.profileCompletion}%`} sub="complete" tone="primary" />
+        </StatRow>
 
         {/* About */}
         <Card>
           <CardHeader
             title="About me"
-            right={<Button label={bioEdit ? "Cancel" : "Edit"} variant="link" size="sm" onPress={() => { setBio(profile.bio); setBioEdit(!bioEdit); }} />}
+            right={<Button label={bioEdit ? "Cancel" : "Edit"} variant="text" size="sm" onPress={() => { setBio(profile.bio); setBioEdit(!bioEdit); }} />}
           />
           {bioEdit ? (
             <View style={{ gap: S.md }}>
-              <Input value={bio} onChangeText={setBio} multiline placeholder="Tell contractors about your work…" style={{ height: 90, textAlignVertical: "top" }} />
+              <TextArea value={bio} onChangeText={setBio} placeholder="Tell contractors about your work…" />
               <Button label="Save" onPress={saveBio} size="sm" />
             </View>
           ) : (
-            <Text style={styles.body}>{profile.bio || "No bio yet — add one to earn trust."}</Text>
+            <Text style={st.body}>{profile.bio || "No bio yet — add one to earn trust."}</Text>
           )}
         </Card>
 
@@ -162,14 +172,18 @@ export default function WorkerProfile() {
           <CardHeader
             title="Skills"
             subtitle="Better matches with more skills"
-            right={<Button label="+ Add" variant="link" size="sm" onPress={() => setSkillOpen(true)} />}
+            right={<Button label="Add" variant="text" size="sm" onPress={() => setSkillOpen(true)} />}
           />
-          <View style={styles.chipWrap}>
-            {profile.skills.length === 0 && <Text style={styles.body}>No skills added yet.</Text>}
+          <View style={st.chipWrap}>
+            {profile.skills.length === 0 && <Text style={st.body}>No skills added yet.</Text>}
             {profile.skills.map((s) => (
-              <Pressable key={s} style={styles.skillChip} onPress={() => removeSkill(user.id, s)}>
-                <Text style={styles.skillText}>{s} ✕</Text>
-              </Pressable>
+              <Chip
+                key={s}
+                label={s}
+                active
+                onPress={() => removeSkill(user.id, s)}
+                small
+              />
             ))}
           </View>
         </Card>
@@ -179,41 +193,51 @@ export default function WorkerProfile() {
           <CardHeader
             title="Certifications"
             subtitle={`${profile.certifications.length} certificates`}
-            right={<Button label="+ Add" variant="link" size="sm" onPress={() => setCertOpen(true)} />}
+            right={<Button label="Add" variant="text" size="sm" onPress={() => setCertOpen(true)} />}
           />
           {profile.certifications.length === 0 ? (
-            <Text style={styles.body}>No certifications yet — add training certificates to boost trust.</Text>
+            <Text style={st.body}>No certifications yet — add training certificates to boost trust.</Text>
           ) : (
-            profile.certifications.map((c) => (
-              <View key={c} style={styles.certRow}>
-                <Text>🏅</Text>
-                <Text style={styles.certName}>{c}</Text>
-              </View>
-            ))
+            <View>
+              {profile.certifications.map((c, i) => (
+                <ListRow
+                  key={c}
+                  icon="ribbon-outline"
+                  iconTone="green"
+                  title={c}
+                  divider={i < profile.certifications.length - 1}
+                />
+              ))}
+            </View>
           )}
         </Card>
 
         {/* Links */}
-        <Card>
+        <Card style={{ paddingHorizontal: S.md }}>
           {[
-            { icon: "🛡️", label: "Trust & Verifications", go: "/(worker)/trust" },
-            { icon: "🚀", label: "Career Roadmap", go: "/(worker)/career" },
-            { icon: "📋", label: "My Applications", go: "/(worker)/applications" },
-            { icon: "🔔", label: "Notifications", go: "/(worker)/notifications" },
-            { icon: "⚠️", label: "Report a Safety Issue", go: "/(worker)/report" },
-            { icon: "⚙️", label: "Settings", go: "/(worker)/settings" },
-          ].map((r) => (
-            <Pressable key={r.go} style={styles.linkRow} onPress={() => router.push(r.go as never)}>
-              <Text style={{ fontSize: 18 }}>{r.icon}</Text>
-              <Text style={styles.linkText}>{r.label}</Text>
-              <Text style={styles.chev}>›</Text>
-            </Pressable>
+            { icon: "shield-checkmark-outline" as const, tone: "green" as const, label: "Trust & Verifications", go: "/(worker)/trust" },
+            { icon: "rocket-outline" as const, tone: "primary" as const, label: "Career Roadmap", go: "/(worker)/career" },
+            { icon: "documents-outline" as const, tone: "blue" as const, label: "My Applications", go: "/(worker)/applications" },
+            { icon: "notifications-outline" as const, tone: "amber" as const, label: "Notifications", go: "/(worker)/notifications" },
+            { icon: "warning-outline" as const, tone: "red" as const, label: "Report a Safety Issue", go: "/(worker)/report" },
+            { icon: "settings-outline" as const, tone: "muted" as const, label: "Settings", go: "/(worker)/settings" },
+          ].map((r, i, arr) => (
+            <ListRow
+              key={r.go}
+              icon={r.icon}
+              iconTone={r.tone}
+              title={r.label}
+              chevron
+              divider={i < arr.length - 1}
+              onPress={() => router.push(r.go as never)}
+            />
           ))}
         </Card>
 
         <Button
           label="Log out"
-          variant="destructive"
+          variant="danger"
+          icon="log-out-outline"
           onPress={() =>
             Alert.alert("Log out", "Are you sure?", [
               { text: "Cancel", style: "cancel" },
@@ -226,34 +250,34 @@ export default function WorkerProfile() {
 
       {/* Details sheet */}
       <Sheet open={detailsOpen} onClose={() => setDetailsOpen(false)} title="Edit Profile Details">
-        <Input label="Full name" value={details.name} onChangeText={(v) => setDetails({ ...details, name: v })} />
-        <Text style={styles.sheetLabel}>Profession</Text>
-        <View style={styles.chipWrap}>
-          {PROFESSION_NAMES.map((p) => (
-            <Chip key={p} label={p} active={details.profession === p} onPress={() => setDetails({ ...details, profession: p })} small />
-          ))}
-        </View>
-        <Input label="Years of experience" value={details.experienceYears} onChangeText={(v) => setDetails({ ...details, experienceYears: v.replace(/\D/g, "") })} keyboardType="number-pad" />
-        <Input label="Expected daily wage (₹)" value={details.expectedDailyWage} onChangeText={(v) => setDetails({ ...details, expectedDailyWage: v.replace(/\D/g, "") })} keyboardType="number-pad" />
-        <Input label="Preferred radius (km)" value={details.preferredRadiusKm} onChangeText={(v) => setDetails({ ...details, preferredRadiusKm: v.replace(/\D/g, "") })} keyboardType="number-pad" />
-        <Text style={styles.sheetLabel}>City</Text>
-        <View style={styles.chipWrap}>
-          {CITIES.map((c) => (
-            <Chip key={c.id} label={c.name} active={details.location === c.id} onPress={() => setDetails({ ...details, location: c.id })} small />
-          ))}
-        </View>
-        <Text style={styles.sheetLabel}>Availability</Text>
-        <View style={styles.chipWrap}>
-          {AVAILABILITY_OPTIONS.map((a) => (
-            <Chip key={a.value} label={a.label} active={details.availability === a.value} onPress={() => setDetails({ ...details, availability: a.value })} small />
-          ))}
-        </View>
+        <Field label="Full name" icon="person-outline" value={details.name} onChangeText={(v: string) => setDetails({ ...details, name: v })} />
+        <Picker
+          label="Profession"
+          value={details.profession}
+          options={PROFESSION_NAMES.map((p) => ({ value: p, label: p }))}
+          onChange={(v) => setDetails({ ...details, profession: v })}
+        />
+        <Field label="Years of experience" value={details.experienceYears} onChangeText={(v: string) => setDetails({ ...details, experienceYears: v.replace(/\D/g, "") })} keyboardType="number-pad" />
+        <Field label="Expected daily wage (₹)" value={details.expectedDailyWage} onChangeText={(v: string) => setDetails({ ...details, expectedDailyWage: v.replace(/\D/g, "") })} keyboardType="number-pad" />
+        <Field label="Preferred radius (km)" value={details.preferredRadiusKm} onChangeText={(v: string) => setDetails({ ...details, preferredRadiusKm: v.replace(/\D/g, "") })} keyboardType="number-pad" />
+        <Picker
+          label="City"
+          value={CITIES.find((c) => c.id === details.location)?.name ?? ""}
+          options={CITIES.map((c) => ({ value: c.name, label: c.name, sub: c.state }))}
+          onChange={(name) => setDetails({ ...details, location: CITIES.find((c) => c.name === name)?.id ?? details.location })}
+        />
+        <Picker
+          label="Availability"
+          value={AVAILABILITY_OPTIONS.find((a) => a.value === details.availability)?.label ?? ""}
+          options={AVAILABILITY_OPTIONS.map((a) => ({ value: a.label, label: a.label }))}
+          onChange={(label) => setDetails({ ...details, availability: AVAILABILITY_OPTIONS.find((a) => a.label === label)?.value ?? "available" })}
+        />
         <Button label="Save Changes" onPress={saveDetails} loading={saving} fullWidth />
       </Sheet>
 
       {/* Skill sheet */}
       <Sheet open={skillOpen} onClose={() => setSkillOpen(false)} title="Add a Skill">
-        <Input
+        <Field
           label="Skill name"
           value={newSkill}
           onChangeText={setNewSkill}
@@ -275,7 +299,7 @@ export default function WorkerProfile() {
 
       {/* Cert sheet */}
       <Sheet open={certOpen} onClose={() => setCertOpen(false)} title="Add Certification">
-        <Input
+        <Field
           label="Certificate name"
           value={newCert}
           onChangeText={setNewCert}
@@ -298,38 +322,24 @@ export default function WorkerProfile() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
-  scroll: { padding: S.lg, paddingBottom: S.xxxl, gap: S.lg },
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
+  scroll: { padding: S.lg, paddingBottom: S.xxxl, gap: S.md },
   identity: { flexDirection: "row", gap: S.lg, alignItems: "center" },
   camBadge: {
     position: "absolute", right: -4, bottom: -4,
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: C.orange600, alignItems: "center", justifyContent: "center",
+    backgroundColor: C.primary, alignItems: "center", justifyContent: "center",
     borderWidth: 2, borderColor: C.white,
   },
-  camText: { fontSize: 12 },
   nameRow: { flexDirection: "row", alignItems: "center", gap: S.sm },
-  name: { fontSize: T.xl, fontWeight: "900", color: C.navy900 },
-  meta: { fontSize: T.xs, color: C.gray500, marginTop: 2, fontWeight: "600" },
-  statRow: { flexDirection: "row", gap: S.sm },
-  statCell: {
-    flex: 1, backgroundColor: C.white, borderRadius: R.md, borderWidth: 1, borderColor: C.gray200,
-    padding: S.md, alignItems: "center", gap: 2,
+  name: { fontSize: T.title, fontWeight: "800", color: C.text },
+  verifiedBadge: {
+    width: 18, height: 18, borderRadius: 9,
+    backgroundColor: C.green,
+    alignItems: "center", justifyContent: "center",
   },
-  statNum: { fontSize: T.xl, fontWeight: "900", color: C.navy900 },
-  statLabel: { fontSize: T.xs, color: C.gray500, fontWeight: "600", textAlign: "center" },
-  body: { fontSize: T.sm, color: C.gray600, lineHeight: 20 },
+  meta: { fontSize: T.caption, color: C.text2, marginTop: 2, fontWeight: "500" },
+  body: { fontSize: T.caption + 1, color: C.text2, lineHeight: 21 },
   chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: S.sm },
-  skillChip: { backgroundColor: C.blue100, borderRadius: R.pill, paddingHorizontal: S.md, paddingVertical: 6 },
-  skillText: { color: C.blue600, fontSize: T.xs, fontWeight: "700" },
-  certRow: { flexDirection: "row", alignItems: "center", gap: S.md, paddingVertical: S.sm },
-  certName: { fontSize: T.sm, fontWeight: "700", color: C.navy900, flex: 1 },
-  linkRow: {
-    flexDirection: "row", alignItems: "center", gap: S.md,
-    paddingVertical: S.md, borderBottomWidth: 1, borderBottomColor: C.gray100,
-  },
-  linkText: { flex: 1, fontSize: T.base, fontWeight: "700", color: C.navy900 },
-  chev: { fontSize: 22, color: C.gray300, fontWeight: "700" },
-  sheetLabel: { fontSize: T.sm, fontWeight: "700", color: C.navy900, marginBottom: S.sm },
 });
