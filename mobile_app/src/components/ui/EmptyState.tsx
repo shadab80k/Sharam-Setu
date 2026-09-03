@@ -21,8 +21,7 @@ const FG: Record<Tone, string> = {
 export function EmptyState({
   icon, message, ctaLabel, onCta, tone = "muted",
 }: {
-  /** IconName (V3) — old screens may pass a ReactNode until rewritten */
-  icon?: IconName | React.ReactNode;
+  icon?: IconName;
   message: string;
   ctaLabel?: string;
   onCta?: () => void;
@@ -31,13 +30,7 @@ export function EmptyState({
   return (
     <View style={st.wrap}>
       <View style={[st.circle, { backgroundColor: BG[tone] }]}>
-        {typeof icon === "string" ? (
-          <Icon name={icon as IconName} size={30} color={FG[tone]} />
-        ) : icon !== undefined && icon !== null ? (
-          icon
-        ) : (
-          <Icon name="folder-open-outline" size={30} color={FG[tone]} />
-        )}
+        <Icon name={icon ?? "folder-open-outline"} size={30} color={FG[tone]} />
       </View>
       <Text style={st.text}>{message}</Text>
       {ctaLabel && onCta ? (

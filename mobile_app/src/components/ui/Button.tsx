@@ -10,18 +10,11 @@ import { C, T, R } from "../../theme/tokens";
 export type BtnVariant = "primary" | "secondary" | "text" | "danger";
 export type BtnSize = "sm" | "md" | "lg";
 
-/** V2 variant names accepted while screens are being rewritten — mapped, never styled differently. */
-const LEGACY_VARIANT: Record<string, BtnVariant> = {
-  link: "text", ghost: "text", destructive: "danger",
-  success: "primary", navy: "primary", orange: "primary", outline: "secondary",
-};
-
 interface BtnProps {
   label: string;
   onPress: () => void;
-  /** "primary" | "secondary" | "text" | "danger" (old names auto-mapped) */
-  variant?: string;
-  size?: string;
+  variant?: BtnVariant;
+  size?: BtnSize;
   disabled?: boolean;
   loading?: boolean;
   fullWidth?: boolean;
@@ -30,11 +23,9 @@ interface BtnProps {
 }
 
 export function Button({
-  label, onPress, variant: rawVariant = "primary", size: rawSize = "lg",
+  label, onPress, variant = "primary", size = "lg",
   disabled, loading, fullWidth, icon, style,
 }: BtnProps) {
-  const variant = (LEGACY_VARIANT[rawVariant] ?? rawVariant) as BtnVariant;
-  const size = (rawSize === "xl" ? "lg" : rawSize) as BtnSize;
   const height = size === "sm" ? 40 : size === "md" ? 48 : 54;
   const font = size === "sm" ? T.caption : T.body;
 

@@ -1,7 +1,6 @@
 /**
  * V3 Feedback — floating toast pills (white surface, colored dot).
- * Sheet/Tabs/ProgressBar/EmptyState moved to dedicated files; re-exported
- * here so existing screen imports keep resolving during the phase rewrite.
+ * Auto-dismisses after 3.2s; only the latest toast is shown.
  */
 import React, { useEffect } from "react";
 import { View, Text, StyleSheet } from "react-native";
@@ -9,12 +8,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useStore } from "../../store";
 import { C, T, R, S, shadow } from "../../theme/tokens";
 
-export { Sheet } from "./Sheet";
-export { Tabs } from "./Tabs";
-export { ProgressBar } from "./ProgressBar";
-export { EmptyState } from "./EmptyState";
-
-/** Global toast host — top-center floating pill, auto-dismisses after 3.2s. */
 export function ToastHost() {
   const toasts = useStore((s) => s.toasts);
   const dismiss = useStore((s) => s.dismissToast);

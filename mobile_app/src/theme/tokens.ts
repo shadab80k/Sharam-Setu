@@ -4,14 +4,9 @@
  * White surfaces, deep-navy text, orange reserved for primary actions only.
  * No borders anywhere: separation comes from background tint, spacing, and a
  * single soft shadow on cards. Every screen imports from here only.
- *
- * LEGACY ALIASES: old (V2) screens still reference V2 token names (navy900,
- * orange600, gray500…). They are merged in at the bottom; each phase-rewrite
- * of a screen removes its usages, and the legacy block is deleted in P5 when
- * zero references remain (grep-verified before removal).
  */
 
-const V3 = {
+export const C = {
   // Base surfaces
   bg: "#F6F7F9",          // app background
   surface: "#FFFFFF",     // cards, bars, sheets
@@ -39,22 +34,6 @@ const V3 = {
   overlay: "rgba(14,28,46,0.45)",
 } as const;
 
-/** V2 names kept alive until every screen is rewritten (removed in P5). */
-const LEGACY = {
-  navy900: V3.text, navy800: V3.text, navy700: V3.text,
-  orange600: V3.primary, orange500: V3.primary, orange100: V3.primarySoft,
-  cream50: V3.bg, cream100: V3.muted,
-  green600: V3.green, green100: V3.greenSoft,
-  blue600: V3.blue, blue100: V3.blueSoft,
-  purple600: V3.purple, purple100: V3.purpleSoft,
-  red600: V3.red, red100: V3.redSoft,
-  gray900: V3.text, gray700: V3.text2, gray600: V3.text2, gray500: V3.text3,
-  gray300: V3.hairline, gray200: V3.muted, gray100: V3.muted, gray50: V3.bg,
-  amber500: V3.amber, amber100: V3.amberSoft,
-} as const;
-
-export const C: typeof V3 & typeof LEGACY = { ...V3, ...LEGACY };
-
 export const R = {
   sm: 10,
   md: 14,
@@ -72,20 +51,13 @@ export const S = {
   xxxl: 32,
 } as const;
 
-const T_v3 = {
+export const T = {
   display: 30,   // intro titles
   title: 20,     // screen titles
   body: 15,      // default text
   caption: 12.5, // meta lines
   tiny: 11,      // labels, badges
 } as const;
-
-const T_legacy = {
-  xs: T_v3.tiny, sm: T_v3.caption, base: T_v3.body,
-  md: 16, lg: 18, xl: 22, xxl: 28,
-} as const;
-
-export const T: typeof T_v3 & typeof T_legacy = { ...T_v3, ...T_legacy };
 
 /** Single card shadow — soft, consistent, never heavier. */
 export const shadow = {
