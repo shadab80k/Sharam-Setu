@@ -19,6 +19,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Field } from "@/components/ui/Field";
 import { SkeletonRow } from "@/components/ui/Avatar";
 import { Chip } from "@/components/ui/Chips";
+import { RatingPill } from "@/components/ui/Swiggy";
 import { Icon } from "@/components/ui/Icon";
 import { C, T, R, S } from "@/theme/tokens";
 import type { User, WorkerProfile } from "@/types";
@@ -155,7 +156,7 @@ export default function FindWorkers() {
                     </Text>
                     <View style={st.badgeRow}>
                       <Badge label={`Trust ${worker.trustScore}`} tone="green" />
-                      {worker.rating > 0 && <Badge label={`★ ${worker.rating.toFixed(1)}`} tone="amber" />}
+                      {worker.rating > 0 && <RatingPill value={worker.rating} size="sm" />}
                       <Badge label={worker.availability === "available" ? "Available" : "Working"} tone={worker.availability === "available" ? "blue" : "gray"} />
                     </View>
                   </View>

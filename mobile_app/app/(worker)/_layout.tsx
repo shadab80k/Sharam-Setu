@@ -1,18 +1,12 @@
 /**
- * Worker tab group (V3) — white bar, hairline top, Ionicons, orange active.
- * Tabs: Home · Jobs · Money · Assistant · Profile.
+ * Worker tab group — Swiggy-style bottom bar: chunky FILLED icons,
+ * soft top shadow (no harsh hairline), orange active + tiny bold label.
  */
 import React from "react";
 import { Tabs } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { useStore } from "@/store";
-import { C, T } from "@/theme/tokens";
-
-type IconName = React.ComponentProps<typeof Ionicons>["name"];
-
-export function TabIcon({ name, focused }: { name: IconName; focused: boolean }) {
-  return <Ionicons name={name} size={23} color={focused ? C.primary : C.text3} />;
-}
+import { NavIcon } from "@/components/ui/Swiggy";
+import { C } from "@/theme/tokens";
 
 export default function WorkerLayout() {
   const unread = useStore((s) => s.notifications.filter((n) => !n.read).length);
@@ -25,28 +19,33 @@ export default function WorkerLayout() {
         tabBarInactiveTintColor: C.text3,
         tabBarStyle: {
           backgroundColor: C.surface,
-          borderTopColor: C.hairline,
-          borderTopWidth: 1,
-          height: 62,
-          paddingBottom: 7,
-          paddingTop: 5,
+          borderTopWidth: 0,
+          height: 66,
+          paddingBottom: 9,
+          paddingTop: 7,
+          elevation: 14,
+          shadowColor: "#0E1C2E",
+          shadowOpacity: 0.09,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: -5 },
         },
-        tabBarLabelStyle: { fontSize: T.tiny, fontWeight: "700" },
-        tabBarBadgeStyle: { backgroundColor: C.primary, color: C.onPrimary },
+        tabBarLabelStyle: { fontSize: 10.5, fontWeight: "700", marginTop: 1 },
+        tabBarIconStyle: { marginTop: 4 },
+        tabBarBadgeStyle: { backgroundColor: C.primary, color: C.white, fontSize: 10, fontWeight: "800" },
       }}
     >
       <Tabs.Screen
         name="home"
         options={{
           title: "Home",
-          tabBarIcon: ({ focused }) => <TabIcon name={focused ? "home" : "home-outline"} focused={focused} />,
+          tabBarIcon: ({ focused }) => <NavIcon name="home" focused={focused} />,
           tabBarBadge: unread > 0 ? unread : undefined,
         }}
       />
-      <Tabs.Screen name="jobs" options={{ title: "Jobs", tabBarIcon: ({ focused }) => <TabIcon name={focused ? "briefcase" : "briefcase-outline"} focused={focused} /> }} />
-      <Tabs.Screen name="money" options={{ title: "Money", tabBarIcon: ({ focused }) => <TabIcon name={focused ? "wallet" : "wallet-outline"} focused={focused} /> }} />
-      <Tabs.Screen name="assistant" options={{ title: "Assistant", tabBarIcon: ({ focused }) => <TabIcon name={focused ? "chatbubble-ellipses" : "chatbubble-ellipses-outline"} focused={focused} /> }} />
-      <Tabs.Screen name="profile" options={{ title: "Profile", tabBarIcon: ({ focused }) => <TabIcon name={focused ? "person" : "person-outline"} focused={focused} /> }} />
+      <Tabs.Screen name="jobs" options={{ title: "Jobs", tabBarIcon: ({ focused }) => <NavIcon name="briefcase" focused={focused} /> }} />
+      <Tabs.Screen name="money" options={{ title: "Money", tabBarIcon: ({ focused }) => <NavIcon name="wallet" focused={focused} /> }} />
+      <Tabs.Screen name="assistant" options={{ title: "Sahayak", tabBarIcon: ({ focused }) => <NavIcon name="chatbubbles" focused={focused} /> }} />
+      <Tabs.Screen name="profile" options={{ title: "Profile", tabBarIcon: ({ focused }) => <NavIcon name="person" focused={focused} /> }} />
     </Tabs>
   );
 }

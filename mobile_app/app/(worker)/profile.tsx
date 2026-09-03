@@ -22,6 +22,7 @@ import { Picker } from "@/components/ui/Picker";
 import { Chip } from "@/components/ui/Chips";
 import { ListRow } from "@/components/ui/ListRow";
 import { Icon } from "@/components/ui/Icon";
+import { RatingPill } from "@/components/ui/Swiggy";
 import { C, T, R, S } from "@/theme/tokens";
 
 export default function WorkerProfile() {
@@ -139,7 +140,7 @@ export default function WorkerProfile() {
             <Text style={st.meta}>{formatINR(profile.expectedDailyWage)}/day expected</Text>
             <View style={{ marginTop: S.sm, flexDirection: "row", gap: S.sm }}>
               <Badge label={`Trust ${profile.trustScore}`} tone="green" />
-              {profile.rating > 0 && <Badge label={`★ ${profile.rating.toFixed(1)}`} tone="amber" />}
+              {profile.rating > 0 && <RatingPill value={profile.rating} size="sm" />}
             </View>
           </View>
         </View>
