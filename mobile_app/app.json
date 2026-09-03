@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "ShramSetu",
+    "slug": "shramsetu-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "shramsetu",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#071B33"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ai.shramsetu.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "ShramSetu uses the camera to set your profile photo.",
+        "NSPhotoLibraryUsageDescription": "ShramSetu uses your photo library to choose a profile photo."
+      }
+    },
+    "android": {
+      "package": "ai.shramsetu.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#071B33"
+      },
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE"]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}
