@@ -48,8 +48,10 @@ next-env.d.ts
 .roo
 .trae
 .windsurf
-
-# insforge
-.insforge/
 .zcode/
-REPORT.md
+
+# Binaries & Tooling
+*.exe
+mobile_app/.expo/
+mobile_app/dist/
+mobile_app/web-build/

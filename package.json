@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "typecheck": "tsc --noEmit",
+    "seed": "tsx scripts/seed.mts",
+    "test:e2e": "tsx scripts/e2e.mts"
   },
   "dependencies": {
     "@insforge/sdk": "^1.5.2",
