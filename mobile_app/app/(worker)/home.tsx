@@ -2,7 +2,7 @@
  * Worker Home — trust ring, availability toggle, today's income,
  * onboarding checklist, AI-recommended jobs.
  */
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -12,6 +12,7 @@ import { workerChecklist, workerNeedsOnboarding } from "@/services/onboarding";
 import { careerSuggestion } from "@/services/professions";
 import { CITIES } from "@/utils/cities";
 import { formatINR } from "@/utils";
+import { toAppRoute } from "@/utils/routes";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { TrustRing } from "@/components/ui/TrustRing";
 import { Badge } from "@/components/ui/Badge";
@@ -85,12 +86,16 @@ export default function WorkerHome() {
     return "Good evening";
   }, []);
 
+  const needsOnboarding = !!user && !!profile && workerNeedsOnboarding(user, profile);
+
+  // New worker → guided setup instead of an empty dashboard.
+  // Navigation must happen in an effect — never during render.
+  useEffect(() => {
+    if (needsOnboarding) router.replace("/(worker)/onboarding");
+  }, [needsOnboarding]);
+
   if (!user || !profile) return null;
-  if (workerNeedsOnboarding(user, profile)) {
-    // New worker → guided setup instead of an empty dashboard
-    router.replace("/(worker)/onboarding");
-    return null;
-  }
+  if (needsOnboarding) return null;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -146,7 +151,7 @@ export default function WorkerHome() {
             <ProgressBar value={(checklistDone / checklist.length) * 100} />
             <View style={{ gap: S.md, marginTop: S.md }}>
               {checklist.filter((c) => !c.done).map((c) => (
-                <Pressable key={c.id} onPress={() => router.push(c.href as never)}>
+                <Pressable key={c.id} onPress={() => router.push(toAppRoute(c.href) as never)}>
                   <Text style={styles.checkItem}>○ {c.label}</Text>
                 </Pressable>
               ))}
