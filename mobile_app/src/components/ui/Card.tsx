@@ -1,6 +1,10 @@
+/**
+ * V3 Card — white surface, radius 18, single soft shadow, NO border.
+ * Pressable variant for tappable cards.
+ */
 import React from "react";
-import { Text, View, StyleSheet, StyleProp, ViewStyle } from "react-native";
-import { C, T, R, S } from "../../theme/tokens";
+import { View, Text, StyleSheet, StyleProp, ViewStyle, Pressable } from "react-native";
+import { C, T, R, S, shadow } from "../../theme/tokens";
 
 interface CardProps {
   children: React.ReactNode;
@@ -9,40 +13,47 @@ interface CardProps {
 }
 
 export function Card({ children, style, onPress }: CardProps) {
-  return (
-    <View style={[styles.card, style]} onTouchEnd={onPress}>
-      {children}
-    </View>
-  );
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [st.card, pressed && st.pressed, style]}
+      >
+        {children}
+      </Pressable>
+    );
+  }
+  return <View style={[st.card, style]}>{children}</View>;
 }
 
 interface CardHeaderProps {
   title?: string;
   subtitle?: string;
+  /** Right-aligned node — link, badge, switch… */
   right?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }
 
 export function CardHeader({ title, subtitle, right, style }: CardHeaderProps) {
   return (
-    <View style={[styles.header, style]}>
+    <View style={[st.header, style]}>
       <View style={{ flex: 1 }}>
-        {title ? <Text style={styles.title}>{title}</Text> : null}
-        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+        {title ? <Text style={st.title}>{title}</Text> : null}
+        {subtitle ? <Text style={st.subtitle}>{subtitle}</Text> : null}
       </View>
       {right}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const st = StyleSheet.create({
   card: {
-    backgroundColor: C.white,
+    backgroundColor: C.surface,
     borderRadius: R.lg,
-    borderWidth: 1,
-    borderColor: C.gray200,
     padding: S.lg,
+    ...shadow,
   },
+  pressed: { opacity: 0.9 },
   header: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -50,14 +61,6 @@ const styles = StyleSheet.create({
     gap: S.md,
     marginBottom: S.md,
   },
-  title: {
-    color: C.navy900,
-    fontSize: T.md,
-    fontWeight: "700",
-  },
-  subtitle: {
-    color: C.gray600,
-    fontSize: T.xs,
-    marginTop: 2,
-  },
+  title: { color: C.text, fontSize: T.body + 1, fontWeight: "700" },
+  subtitle: { color: C.text2, fontSize: T.caption, marginTop: 2 },
 });

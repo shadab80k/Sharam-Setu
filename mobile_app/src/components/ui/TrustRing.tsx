@@ -1,28 +1,22 @@
+/**
+ * V3 TrustRing — thin stroke (5), tier color, score + label centered.
+ * Same visual language as web TrustRing, lighter weight.
+ */
 import React, { useEffect, useRef } from "react";
 import { Text, View, Animated, Easing } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { C, trustColor, trustLabel } from "../../theme/tokens";
 
-interface TrustRingProps {
-  score: number;
-  size?: number;
-  showLabel?: boolean;
-}
-
 /** RN Animated can't attach to an SVG component directly — wrap via createAnimatedComponent. */
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-/**
- * Animated trust ring — same visual language as the web app's TrustRing:
- * circular progress stroke colored by trust tier, score in the center.
- * Uses plain RN Animated (no react-native-reanimated dependency).
- */
-export function TrustRing({ score, size = 96, showLabel = true }: TrustRingProps) {
-  const stroke = 7;
+export function TrustRing({ score, size = 96, showLabel = true }: {
+  score: number; size?: number; showLabel?: boolean;
+}) {
+  const stroke = 5;
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
 
-  // strokeDashoffset animates from full circumference (empty) to the score fraction.
   const offset = useRef(new Animated.Value(circumference)).current;
 
   useEffect(() => {
@@ -36,21 +30,11 @@ export function TrustRing({ score, size = 96, showLabel = true }: TrustRingProps
   }, [score, circumference, offset]);
 
   const color = trustColor(score);
-  const label = trustLabel(score);
 
   return (
     <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
       <Svg width={size} height={size} style={{ transform: [{ rotate: "-90deg" }] }}>
-        {/* Track */}
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          stroke={C.gray200}
-          strokeWidth={stroke}
-          fill="none"
-        />
-        {/* Progress */}
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={C.muted} strokeWidth={stroke} fill="none" />
         <AnimatedCircle
           cx={size / 2}
           cy={size / 2}
@@ -64,12 +48,10 @@ export function TrustRing({ score, size = 96, showLabel = true }: TrustRingProps
         />
       </Svg>
       <View style={{ position: "absolute", alignItems: "center" }}>
-        <Text style={{ fontSize: size * 0.26, fontWeight: "800", color: C.navy900 }}>
-          {score}
-        </Text>
+        <Text style={{ fontSize: size * 0.27, fontWeight: "800", color: C.text }}>{score}</Text>
         {showLabel && (
-          <Text style={{ fontSize: Math.max(9, size * 0.09), color: C.gray500, fontWeight: "600", marginTop: 1 }}>
-            {label}
+          <Text style={{ fontSize: Math.max(8.5, size * 0.088), color: C.text2, fontWeight: "600", marginTop: 1 }}>
+            {trustLabel(score)}
           </Text>
         )}
       </View>

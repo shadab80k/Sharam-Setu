@@ -1,86 +1,87 @@
+/**
+ * V3 Button — orange fill (primary) / muted fill (secondary) / text / danger-soft.
+ * No outlines anywhere. 40/48/54 touch heights.
+ */
 import React from "react";
-import {
-  Text, TouchableOpacity, ActivityIndicator, ViewStyle, StyleProp,
-} from "react-native";
-import { C, T, R, S } from "../../theme/tokens";
+import { Text, StyleSheet, Pressable, ActivityIndicator, ViewStyle } from "react-native";
+import { Icon, IconName } from "./Icon";
+import { C, T, R } from "../../theme/tokens";
 
-type Variant = "primary" | "secondary" | "destructive" | "success" | "ghost" | "link";
-type Size = "sm" | "md" | "lg";
+export type BtnVariant = "primary" | "secondary" | "text" | "danger";
+export type BtnSize = "sm" | "md" | "lg";
 
-interface ButtonProps {
+/** V2 variant names accepted while screens are being rewritten — mapped, never styled differently. */
+const LEGACY_VARIANT: Record<string, BtnVariant> = {
+  link: "text", ghost: "text", destructive: "danger",
+  success: "primary", navy: "primary", orange: "primary", outline: "secondary",
+};
+
+interface BtnProps {
   label: string;
   onPress: () => void;
-  variant?: Variant;
-  size?: Size;
-  loading?: boolean;
+  /** "primary" | "secondary" | "text" | "danger" (old names auto-mapped) */
+  variant?: string;
+  size?: string;
   disabled?: boolean;
+  loading?: boolean;
   fullWidth?: boolean;
-  icon?: React.ReactNode;
-  style?: StyleProp<ViewStyle>;
+  icon?: IconName;
+  style?: ViewStyle;
 }
 
-const VARIANT: Record<Variant, { bg: string; text: string; border?: string }> = {
-  primary: { bg: C.orange600, text: C.white },
-  secondary: { bg: C.white, text: C.navy900, border: C.gray300 },
-  destructive: { bg: C.red600, text: C.white },
-  success: { bg: C.green600, text: C.white },
-  ghost: { bg: "transparent", text: C.navy900 },
-  link: { bg: "transparent", text: C.orange600 },
-};
-
-const SIZE: Record<Size, { h: number; px: number; font: number }> = {
-  sm: { h: 40, px: S.lg, font: T.sm },
-  md: { h: 50, px: S.xl, font: T.base },
-  lg: { h: 56, px: S.xxl, font: T.md },
-};
-
 export function Button({
-  label, onPress, variant = "primary", size = "md",
-  loading, disabled, fullWidth, icon, style,
-}: ButtonProps) {
-  const v = VARIANT[variant];
-  const sz = SIZE[size];
-  const isDisabled = disabled || loading;
+  label, onPress, variant: rawVariant = "primary", size: rawSize = "lg",
+  disabled, loading, fullWidth, icon, style,
+}: BtnProps) {
+  const variant = (LEGACY_VARIANT[rawVariant] ?? rawVariant) as BtnVariant;
+  const size = (rawSize === "xl" ? "lg" : rawSize) as BtnSize;
+  const height = size === "sm" ? 40 : size === "md" ? 48 : 54;
+  const font = size === "sm" ? T.caption : T.body;
+
+  const fill =
+    variant === "primary" ? C.primary :
+    variant === "secondary" ? C.muted :
+    variant === "danger" ? C.redSoft : "transparent";
+  const fg =
+    variant === "primary" ? C.onPrimary :
+    variant === "danger" ? C.red :
+    variant === "secondary" ? C.text : C.primary;
 
   return (
-    <TouchableOpacity
+    <Pressable
       onPress={onPress}
-      disabled={isDisabled}
-      activeOpacity={0.8}
-      style={[
+      disabled={disabled || loading}
+      style={({ pressed }) => [
+        st.base,
         {
-          height: sz.h,
-          paddingHorizontal: sz.px,
-          borderRadius: R.md,
-          backgroundColor: v.bg,
-          borderWidth: v.border ? 1 : 0,
-          borderColor: v.border,
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: S.sm,
-          opacity: isDisabled ? 0.5 : 1,
+          height,
+          backgroundColor: variant === "text" ? "transparent" : fill,
+          paddingHorizontal: variant === "text" ? 4 : 20,
+          opacity: disabled ? 0.4 : pressed && variant !== "text" ? 0.85 : 1,
         },
-        fullWidth && { alignSelf: "stretch" },
+        fullWidth && st.full,
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={v.text} size="small" />
+        <ActivityIndicator size="small" color={fg} />
       ) : (
         <>
-          {icon}
-          <Text
-            style={{
-              color: v.text,
-              fontSize: sz.font,
-              fontWeight: variant === "primary" || variant === "destructive" || variant === "success" ? "700" : "600",
-            }}
-          >
-            {label}
-          </Text>
+          {icon ? <Icon name={icon} size={16} color={fg} /> : null}
+          <Text style={{ color: fg, fontSize: font, fontWeight: "700" }}>{label}</Text>
         </>
       )}
-    </TouchableOpacity>
+    </Pressable>
   );
 }
+
+const st = StyleSheet.create({
+  base: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: R.md,
+  },
+  full: { alignSelf: "stretch" },
+});

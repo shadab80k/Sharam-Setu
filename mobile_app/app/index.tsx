@@ -1,7 +1,6 @@
 /**
- * Welcome / Login — phone OTP (primary), demo accounts, email login + signup.
- * Mirrors the web LoginPageClient flow for mazdur-first usage: one big phone
- * field, one green button; everything else tucked below.
+ * Welcome / Login (V3) — phone OTP primary, email toggle, demo ListRows.
+ * Premium minimal: logo + tagline top, one card, everything else quiet.
  */
 import React, { useState } from "react";
 import {
@@ -11,12 +10,14 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "@/store";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { Field } from "@/components/ui/Field";
+import { ListRow } from "@/components/ui/ListRow";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { C, T, R, S } from "@/theme/tokens";
 
 const DEMO = [
-  { role: "Worker", email: "worker@shramsetu.local" },
-  { role: "Contractor", email: "contractor@shramsetu.local" },
+  { icon: "person" as const, tone: "primary" as const, email: "worker@shramsetu.local", title: "Try Worker demo", sub: "Jobs, trust score, money tracking" },
+  { icon: "business" as const, tone: "blue" as const, email: "contractor@shramsetu.local", title: "Try Contractor demo", sub: "Post jobs, hire, pay, review" },
 ];
 
 export default function Welcome() {
@@ -41,46 +42,43 @@ export default function Welcome() {
     }
   }
 
-  function handleSendOtp() {
-    router.push({ pathname: "/otp", params: { phone } });
-  }
-
-  function handleEmailLogin() {
+  async function handleEmailLogin() {
     setBusy("email");
-    loginByEmail(email, password).then((user) => {
+    try {
+      const user = await loginByEmail(email, password);
       if (user) router.replace(user.role === "worker" ? "/(worker)/home" : "/(contractor)/home");
+    } finally {
       setBusy(null);
-    });
+    }
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={st.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={st.scroll} keyboardShouldPersistTaps="handled">
           {/* Brand */}
-          <View style={styles.brand}>
-            <View style={styles.logo}>
-              <Text style={styles.logoText}>S</Text>
+          <View style={st.brand}>
+            <View style={st.logo}>
+              <Text style={st.logoText}>S</Text>
             </View>
-            <Text style={styles.brandName}>ShramSetu</Text>
-            <Text style={styles.tagline}>The bridge between workers and work</Text>
+            <Text style={st.brandName}>ShramSetu</Text>
+            <Text style={st.tagline}>Work you can trust</Text>
           </View>
 
           {/* Phone OTP — primary path */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Login with your phone</Text>
-            <Text style={styles.cardSub}>We'll send a 6-digit code by SMS</Text>
-            <Input
+          <View style={st.card}>
+            <Field
               label="Mobile number"
+              icon="call"
               value={phone}
-              onChangeText={(t) => setPhone(t.replace(/\D/g, "").slice(0, 10))}
+              onChangeText={(t: string) => setPhone(t.replace(/\D/g, "").slice(0, 10))}
               placeholder="98XXXXXXXX"
               keyboardType="number-pad"
               maxLength={10}
             />
             <Button
-              label="Send Code"
-              onPress={handleSendOtp}
+              label="Continue"
+              onPress={() => router.push({ pathname: "/otp", params: { phone } })}
               disabled={phone.length !== 10}
               fullWidth
             />
@@ -88,35 +86,35 @@ export default function Welcome() {
 
           {/* Email login toggle */}
           {emailMode ? (
-            <View style={styles.card}>
-              <Input label="Email" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" />
-              <Input label="Password" value={password} onChangeText={setPassword} placeholder="••••••" secureTextEntry />
+            <View style={st.card}>
+              <Field label="Email" icon="mail" value={email} onChangeText={setEmail} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" />
+              <Field label="Password" icon="lock-closed" value={password} onChangeText={setPassword} placeholder="••••••" secureTextEntry />
               <Button label="Login" onPress={handleEmailLogin} loading={busy === "email"} disabled={!email || password.length < 6} fullWidth />
-              <Pressable onPress={() => router.push("/signup")} style={styles.switchLink}>
-                <Text style={styles.switchText}>New here? <Text style={{ color: C.orange600, fontWeight: "700" }}>Create an account</Text></Text>
+              <Pressable onPress={() => router.push("/signup")} style={st.switchLink} hitSlop={8}>
+                <Text style={st.switchText}>New to ShramSetu? <Text style={{ color: C.primary, fontWeight: "700" }}>Create account</Text></Text>
               </Pressable>
             </View>
           ) : (
-            <Pressable onPress={() => setEmailMode(true)} style={styles.switchLink}>
-              <Text style={styles.switchText}>Login with email instead</Text>
+            <Pressable onPress={() => setEmailMode(true)} style={st.switchLink} hitSlop={8}>
+              <Text style={st.switchText}>Login with email instead</Text>
             </Pressable>
           )}
 
           {/* Demo accounts */}
-          <View style={styles.demoBox}>
-            <Text style={styles.demoTitle}>Quick demo access</Text>
-            <Text style={styles.demoSub}>Explore with seeded evaluator accounts</Text>
-            <View style={{ flexDirection: "row", gap: S.md }}>
-              {DEMO.map((d) => (
-                <Pressable
-                  key={d.role}
-                  style={[styles.demoBtn, d.role === "Worker" ? { backgroundColor: C.orange100 } : { backgroundColor: C.blue100 }]}
+          <View style={{ marginTop: S.xl }}>
+            <SectionHeader title="Just exploring?" />
+            <View style={st.demoCard}>
+              {DEMO.map((d, i) => (
+                <ListRow
+                  key={d.email}
+                  icon={d.icon}
+                  iconTone={d.tone}
+                  title={d.title}
+                  sub={busy === d.email ? "Signing in…" : d.sub}
+                  chevron
+                  divider={i === 0}
                   onPress={() => handleDemo(d.email)}
-                  disabled={busy !== null}
-                >
-                  <Text style={styles.demoRole}>{d.role}</Text>
-                  <Text style={styles.demoHint}>{busy === d.email ? "Signing in…" : "Tap to enter"}</Text>
-                </Pressable>
+                />
               ))}
             </View>
           </View>
@@ -126,46 +124,33 @@ export default function Welcome() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
-  scroll: { padding: S.xl, paddingBottom: S.xxxl, gap: S.lg },
-  brand: { alignItems: "center", marginTop: S.xl, marginBottom: S.lg, gap: S.xs },
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
+  scroll: { padding: S.xl, paddingBottom: S.xxxl },
+  brand: { alignItems: "center", marginTop: S.xxxl, marginBottom: S.xxl, gap: S.xs },
   logo: {
-    width: 84, height: 84, borderRadius: 24,
-    backgroundColor: C.navy900, alignItems: "center", justifyContent: "center",
-    marginBottom: S.sm,
-  },
-  logoText: { color: C.orange500, fontSize: 40, fontWeight: "900" },
-  brandName: { fontSize: T.xxl, fontWeight: "900", color: C.navy900 },
-  tagline: { fontSize: T.sm, color: C.gray500, fontWeight: "500" },
-  card: {
-    backgroundColor: C.white,
-    borderRadius: R.lg,
-    borderWidth: 1,
-    borderColor: C.gray200,
-    padding: S.xl,
-    gap: S.md,
-  },
-  cardTitle: { fontSize: T.lg, fontWeight: "800", color: C.navy900 },
-  cardSub: { fontSize: T.sm, color: C.gray500, marginTop: -S.xs },
-  switchLink: { alignItems: "center", paddingVertical: S.sm },
-  switchText: { color: C.gray600, fontSize: T.sm, fontWeight: "600" },
-  demoBox: {
-    marginTop: S.md,
-    backgroundColor: C.cream100,
-    borderRadius: R.lg,
-    padding: S.xl,
-    gap: S.sm,
-  },
-  demoTitle: { fontSize: T.sm, fontWeight: "800", color: C.navy900, textAlign: "center" },
-  demoSub: { fontSize: T.xs, color: C.gray600, textAlign: "center", marginBottom: S.xs },
-  demoBtn: {
-    flex: 1,
-    borderRadius: R.md,
-    paddingVertical: S.md,
+    width: 80, height: 80,
+    borderRadius: 24,
+    backgroundColor: C.text,
     alignItems: "center",
-    gap: 2,
+    justifyContent: "center",
+    marginBottom: S.md,
   },
-  demoRole: { fontSize: T.base, fontWeight: "800", color: C.navy900 },
-  demoHint: { fontSize: T.xs, color: C.gray600, fontWeight: "600" },
+  logoText: { color: C.primary, fontSize: 38, fontWeight: "900" },
+  brandName: { fontSize: T.title + 4, fontWeight: "800", color: C.text },
+  tagline: { fontSize: T.body, color: C.text2, fontWeight: "500" },
+  card: {
+    backgroundColor: C.surface,
+    borderRadius: R.lg,
+    padding: S.lg,
+    marginBottom: S.md,
+  },
+  switchLink: { alignItems: "center", paddingVertical: S.sm },
+  switchText: { color: C.text2, fontSize: T.body, fontWeight: "600" },
+  demoCard: {
+    backgroundColor: C.surface,
+    borderRadius: R.lg,
+    paddingHorizontal: S.lg,
+    paddingVertical: S.xs,
+  },
 });

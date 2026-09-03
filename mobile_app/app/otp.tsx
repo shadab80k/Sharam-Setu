@@ -1,13 +1,13 @@
 /**
- * OTP verify — 6-digit code entry with auto-focus boxes.
- * New numbers return signupRequired → routes to /signup with the phone carried over.
+ * OTP verify (V3) — 6 muted-fill code boxes, orange when filled.
+ * New numbers return signupRequired → /signup carries params; signup=1 means
+ * this verify CREATES the account (name/role/city included).
  */
 import React, { useRef, useState } from "react";
-import {
-  View, Text, StyleSheet, Pressable, TextInput, ScrollView,
-} from "react-native";
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Icon } from "@/components/ui/Icon";
 import { useStore } from "@/store";
 import { Button } from "@/components/ui/Button";
 import { C, T, R, S } from "@/theme/tokens";
@@ -47,7 +47,6 @@ export default function OtpScreen() {
     if (code.length !== CODE_LEN) return;
     setBusy(true);
     try {
-      // signup=1 means verify-otp is completing a NEW account (name/role/city set).
       const user = signup === "1"
         ? await verifyOtp(phone, code, name, role, location)
         : await verifyOtp(phone, code);
@@ -60,20 +59,25 @@ export default function OtpScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Pressable onPress={() => router.back()} style={styles.back}>
-          <Text style={styles.backText}>← Back</Text>
+    <SafeAreaView style={st.safe}>
+      <ScrollView contentContainerStyle={st.scroll} keyboardShouldPersistTaps="handled">
+        <Pressable onPress={() => router.back()} hitSlop={10} style={st.back}>
+          <Icon name="chevron-back" size={20} color={C.text2} />
         </Pressable>
 
-        <Text style={styles.title}>{signup === "1" ? "Confirm your number" : "Enter the code"}</Text>
-        <Text style={styles.sub}>
+        <View style={st.iconWrap}>
+          <View style={st.iconBox}>
+            <Icon name="chatbox-ellipses" size={26} color={C.primary} />
+          </View>
+        </View>
+        <Text style={st.title}>{signup === "1" ? "Confirm your number" : "Enter the code"}</Text>
+        <Text style={st.sub}>
           {signup === "1"
             ? `We sent a fresh code to +91 ${phone} to activate your new account.`
-            : `Sent to +91 ${phone}. ${"\n"}Wrong number? Go back and edit.`}
+            : `Sent to +91 ${phone}. Wrong number? Go back and edit.`}
         </Text>
 
-        <View style={styles.boxes}>
+        <View style={st.boxes}>
           {digits.map((d, i) => (
             <TextInput
               key={i}
@@ -88,8 +92,8 @@ export default function OtpScreen() {
               keyboardType="number-pad"
               maxLength={CODE_LEN}
               autoFocus={i === 0}
-              style={[styles.box, d ? styles.boxFilled : null]}
-              selectionColor={C.orange600}
+              style={[st.box, d ? st.boxFilled : null]}
+              selectionColor={C.primary}
             />
           ))}
         </View>
@@ -102,40 +106,47 @@ export default function OtpScreen() {
           fullWidth
         />
 
-        <Pressable
-          onPress={() => {
-            useStore.getState().sendOtp(phone);
-          }}
-          style={styles.resend}
-        >
-          <Text style={styles.resendText}>Resend code</Text>
+        <Pressable onPress={() => { useStore.getState().sendOtp(phone); }} style={st.resend} hitSlop={10}>
+          <Text style={st.resendText}>Resend code</Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
-  scroll: { padding: S.xl, gap: S.lg },
-  back: { alignSelf: "flex-start", paddingVertical: S.xs },
-  backText: { color: C.gray600, fontSize: T.sm, fontWeight: "700" },
-  title: { fontSize: T.xxl, fontWeight: "900", color: C.navy900, marginTop: S.xl },
-  sub: { fontSize: T.sm, color: C.gray500, lineHeight: 20 },
-  boxes: { flexDirection: "row", gap: S.sm, marginVertical: S.xl },
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
+  scroll: { padding: S.xl, gap: S.md },
+  back: {
+    width: 40, height: 40,
+    borderRadius: R.pill,
+    backgroundColor: C.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "flex-start",
+  },
+  iconWrap: { alignItems: "center", marginTop: S.xl },
+  iconBox: {
+    width: 72, height: 72,
+    borderRadius: 24,
+    backgroundColor: C.primarySoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  title: { fontSize: T.title, fontWeight: "800", color: C.text, textAlign: "center", marginTop: S.md },
+  sub: { fontSize: T.body, color: C.text2, textAlign: "center", lineHeight: 22 },
+  boxes: { flexDirection: "row", gap: S.sm, marginVertical: S.lg },
   box: {
     flex: 1,
     aspectRatio: 0.8,
-    backgroundColor: C.white,
-    borderWidth: 1.5,
-    borderColor: C.gray300,
+    backgroundColor: C.muted,
     borderRadius: R.md,
     textAlign: "center",
-    fontSize: T.xl,
+    fontSize: T.title,
     fontWeight: "800",
-    color: C.navy900,
+    color: C.text,
   },
-  boxFilled: { borderColor: C.navy900 },
+  boxFilled: { backgroundColor: C.primarySoft, color: C.primary },
   resend: { alignItems: "center", paddingVertical: S.md },
-  resendText: { color: C.orange600, fontSize: T.sm, fontWeight: "700" },
+  resendText: { color: C.primary, fontSize: T.body, fontWeight: "700" },
 });

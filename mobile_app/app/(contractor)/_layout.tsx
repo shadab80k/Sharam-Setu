@@ -1,14 +1,17 @@
 /**
- * Contractor tab group — bottom tabs: Home · Jobs · Workers · Applicants · Profile.
+ * Contractor tab group (V3) — white bar, hairline top, Ionicons, orange active.
+ * Tabs: Home · Jobs · Workers · Applicants · Profile.
  */
 import React from "react";
 import { Tabs } from "expo-router";
-import { Text } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useStore } from "@/store";
 import { C, T } from "@/theme/tokens";
 
-function TabIcon({ emoji, focus }: { emoji: string; focus: boolean }) {
-  return <Text style={{ fontSize: 20, opacity: focus ? 1 : 0.55 }}>{emoji}</Text>;
+type IconName = React.ComponentProps<typeof Ionicons>["name"];
+
+function TabIcon({ name, focused }: { name: IconName; focused: boolean }) {
+  return <Ionicons name={name} size={23} color={focused ? C.primary : C.text3} />;
 }
 
 export default function ContractorLayout() {
@@ -18,23 +21,32 @@ export default function ContractorLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: C.orange600,
-        tabBarInactiveTintColor: C.gray500,
-        tabBarStyle: { backgroundColor: C.white, borderTopColor: C.gray200, height: 64, paddingBottom: 6 },
+        tabBarActiveTintColor: C.primary,
+        tabBarInactiveTintColor: C.text3,
+        tabBarStyle: {
+          backgroundColor: C.surface,
+          borderTopColor: C.hairline,
+          borderTopWidth: 1,
+          height: 62,
+          paddingBottom: 7,
+          paddingTop: 5,
+        },
+        tabBarLabelStyle: { fontSize: T.tiny, fontWeight: "700" },
+        tabBarBadgeStyle: { backgroundColor: C.primary, color: C.onPrimary },
       }}
     >
       <Tabs.Screen
         name="home"
         options={{
           title: "Home",
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focus={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon name={focused ? "home" : "home-outline"} focused={focused} />,
           tabBarBadge: unread > 0 ? unread : undefined,
         }}
       />
-      <Tabs.Screen name="jobs" options={{ title: "Jobs", tabBarIcon: ({ focused }) => <TabIcon emoji="🧰" focus={focused} /> }} />
-      <Tabs.Screen name="workers" options={{ title: "Workers", tabBarIcon: ({ focused }) => <TabIcon emoji="👷" focus={focused} /> }} />
-      <Tabs.Screen name="applicants" options={{ title: "Applicants", tabBarIcon: ({ focused }) => <TabIcon emoji="📋" focus={focused} /> }} />
-      <Tabs.Screen name="profile" options={{ title: "Profile", tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focus={focused} /> }} />
+      <Tabs.Screen name="jobs" options={{ title: "Jobs", tabBarIcon: ({ focused }) => <TabIcon name={focused ? "briefcase" : "briefcase-outline"} focused={focused} /> }} />
+      <Tabs.Screen name="workers" options={{ title: "Workers", tabBarIcon: ({ focused }) => <TabIcon name={focused ? "people" : "people-outline"} focused={focused} /> }} />
+      <Tabs.Screen name="applicants" options={{ title: "Applicants", tabBarIcon: ({ focused }) => <TabIcon name={focused ? "clipboard" : "clipboard-outline"} focused={focused} /> }} />
+      <Tabs.Screen name="profile" options={{ title: "Profile", tabBarIcon: ({ focused }) => <TabIcon name={focused ? "person" : "person-outline"} focused={focused} /> }} />
     </Tabs>
   );
 }
