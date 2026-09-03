@@ -1,6 +1,6 @@
 /**
- * Worker Home — trust ring, availability toggle, today's income,
- * onboarding checklist, AI-recommended jobs.
+ * Worker Home (V3) — hero card (TrustRing + availability), 3 StatTiles,
+ * recommended job ListRows, profile-progress card, AI career tip.
  */
 import React, { useEffect, useMemo } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from "react-native";
@@ -15,10 +15,13 @@ import { formatINR } from "@/utils";
 import { toAppRoute } from "@/utils/routes";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { TrustRing } from "@/components/ui/TrustRing";
-import { Badge } from "@/components/ui/Badge";
-import { ProgressBar } from "@/components/ui/Feedback";
-import { Button } from "@/components/ui/Button";
-import { C, T, R, S } from "@/theme/tokens";
+import { DotText, Badge } from "@/components/ui/Badge";
+import { StatTile, StatRow } from "@/components/ui/StatTile";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { ListRow } from "@/components/ui/ListRow";
+import { Icon } from "@/components/ui/Icon";
+import { C, T, R, S, shadow } from "@/theme/tokens";
 
 export default function WorkerHome() {
   const router = useRouter();
@@ -86,10 +89,22 @@ export default function WorkerHome() {
     return "Good evening";
   }, []);
 
+  const careerTip = useMemo(() => {
+    if (!profile || !user) return null;
+    const sug = careerSuggestion({
+      profession: profile.profession,
+      experienceYears: profile.experienceYears,
+      expectedDailyWage: profile.expectedDailyWage,
+      cityId: user.location,
+    });
+    if (sug.underpaid) return `Market rate for your level is ${formatINR(sug.fairWage)}/day vs your ${formatINR(sug.currentWage)}/day — consider raising your wage.`;
+    if (sug.nextProfession) return `Next step: ${sug.nextProfession}${sug.nextWage ? ` (est. ${formatINR(sug.nextWage)}/day)` : ""}.`;
+    return "Your wage matches the market — keep building trust.";
+  }, [profile, user]);
+
   const needsOnboarding = !!user && !!profile && workerNeedsOnboarding(user, profile);
 
-  // New worker → guided setup instead of an empty dashboard.
-  // Navigation must happen in an effect — never during render.
+  // New worker → guided setup. Navigation must happen in an effect — never during render.
   useEffect(() => {
     if (needsOnboarding) router.replace("/(worker)/onboarding");
   }, [needsOnboarding]);
@@ -98,155 +113,156 @@ export default function WorkerHome() {
   if (needsOnboarding) return null;
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <SafeAreaView style={st.safe} edges={["top"]}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={st.scroll}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => bootstrap()} />}
       >
-        {/* Header */}
-        <View style={styles.header}>
+        {/* Hero — trust + availability */}
+        <View style={st.hero}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.greeting}>{greeting}, {user.name.split(" ")[0]} 👋</Text>
-            <Pressable onPress={() => toggleAvailability(user.id)} style={styles.availBtn}>
-              <Badge
-                label={profile.availability === "available" ? "● Available for work" : "● Working / Busy"}
+            <Text style={st.greeting}>{greeting},</Text>
+            <Text style={st.name}>{user.name.split(" ")[0]}</Text>
+            <Pressable onPress={() => toggleAvailability(user.id)} style={st.availBtn} hitSlop={8}>
+              <DotText
+                text={profile.availability === "available" ? "Available for work" : "Working / Busy"}
                 tone={profile.availability === "available" ? "green" : "amber"}
               />
-              <Text style={styles.availHint}>tap to change</Text>
+              <Text style={st.availHint}>tap to change</Text>
             </Pressable>
+            {monthTrend !== undefined && (
+              <View style={st.trendRow}>
+                <Icon
+                  name={monthTrend >= 0 ? "trending-up" : "trending-down"}
+                  size={13}
+                  color={monthTrend >= 0 ? C.green : C.red}
+                />
+                <Text style={[st.trendText, { color: monthTrend >= 0 ? C.green : C.red }]}>
+                  {Math.abs(monthTrend)} pts this month
+                </Text>
+              </View>
+            )}
           </View>
-          <TrustRing score={profile.trustScore} size={92} />
+          <Pressable onPress={() => router.push("/(worker)/trust")}>
+            <TrustRing score={profile.trustScore} size={104} />
+          </Pressable>
         </View>
-        {monthTrend !== undefined && (
-          <Text style={styles.trend}>
-            {monthTrend >= 0 ? "↑" : "↓"} {Math.abs(monthTrend)} trust points this month
-          </Text>
-        )}
 
         {/* Money snapshot */}
-        <View style={styles.moneyRow}>
-          <View style={styles.moneyCard}>
-            <Text style={styles.moneyLabel}>Today's income</Text>
-            <Text style={[styles.moneyValue, { color: C.green600 }]}>{formatINR(todaysIncome)}</Text>
-          </View>
-          <View style={styles.moneyCard}>
-            <Text style={styles.moneyLabel}>Pending payments</Text>
-            <Text style={[styles.moneyValue, { color: C.orange600 }]}>{formatINR(pendingTotal)}</Text>
-          </View>
-          <View style={styles.moneyCard}>
-            <Text style={styles.moneyLabel}>Active applications</Text>
-            <Text style={styles.moneyValue}>{activeApps}</Text>
-          </View>
-        </View>
+        <StatRow>
+          <StatTile icon="wallet-outline" label="Today" value={formatINR(todaysIncome)} sub="income earned" tone="green" onPress={() => router.push("/(worker)/money")} />
+          <StatTile icon="hourglass-outline" label="Pending" value={formatINR(pendingTotal)} sub="awaiting payment" tone="amber" onPress={() => router.push("/(worker)/money")} />
+          <StatTile icon="documents-outline" label="Active" value={String(activeApps)} sub="applications" tone="blue" onPress={() => router.push("/(worker)/applications")} />
+        </StatRow>
 
-        {/* Onboarding checklist */}
+        {/* Profile completion */}
         {checklistDone < checklist.length && (
-          <Card style={{ marginBottom: S.lg }}>
+          <Card style={{ marginBottom: S.md }}>
             <CardHeader
               title="Complete your profile"
               subtitle={`${checklistDone} of ${checklist.length} done — earn trust & better matches`}
-              right={<Text style={styles.checkPct}>{Math.round((checklistDone / checklist.length) * 100)}%</Text>}
+              right={<Text style={st.checkPct}>{Math.round((checklistDone / checklist.length) * 100)}%</Text>}
             />
             <ProgressBar value={(checklistDone / checklist.length) * 100} />
-            <View style={{ gap: S.md, marginTop: S.md }}>
-              {checklist.filter((c) => !c.done).map((c) => (
-                <Pressable key={c.id} onPress={() => router.push(toAppRoute(c.href) as never)}>
-                  <Text style={styles.checkItem}>○ {c.label}</Text>
-                </Pressable>
+            <View style={{ marginTop: S.sm + 2 }}>
+              {checklist.filter((c) => !c.done).slice(0, 3).map((c) => (
+                <ListRow
+                  key={c.id}
+                  icon="ellipse-outline"
+                  iconTone="muted"
+                  title={c.label}
+                  chevron
+                  divider={false}
+                  style={{ paddingVertical: S.xs + 2 }}
+                  onPress={() => router.push(toAppRoute(c.href) as never)}
+                />
               ))}
             </View>
           </Card>
         )}
 
         {/* Recommended jobs */}
-        <Card style={{ marginBottom: S.lg }}>
-          <CardHeader
-            title="Recommended for you"
-            subtitle={`AI-matched jobs near ${city.name}`}
-            right={<Button label="See all" variant="link" size="sm" onPress={() => router.push("/(worker)/jobs")} />}
-          />
-          {recommended.length === 0 ? (
-            <Text style={styles.emptyText}>No open jobs right now — check back soon.</Text>
-          ) : (
-            recommended.map((m) => (
-              <Pressable key={m.job.id} style={styles.recRow} onPress={() => router.push({ pathname: "/(worker)/jobs/[id]", params: { id: m.job.id } })}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.recTitle} numberOfLines={1}>{m.job.title}</Text>
-                  <Text style={styles.recSub}>
-                    {formatINR(m.job.wagePerDay)}/day · {m.job.location}
-                  </Text>
-                </View>
-                <View style={[styles.matchBadge, { backgroundColor: m.matchScore >= 70 ? C.green100 : m.matchScore >= 40 ? C.orange100 : C.gray100 }]}>
-                  <Text style={[styles.matchText, { color: m.matchScore >= 70 ? C.green600 : m.matchScore >= 40 ? C.orange600 : C.gray600 }]}>
-                    {Math.round(m.matchScore)}%
-                  </Text>
-                </View>
-              </Pressable>
-            ))
-          )}
-        </Card>
+        <SectionHeader title="Recommended for you" action="See all" onAction={() => router.push("/(worker)/jobs")} />
+        {recommended.length === 0 ? (
+          <Card><Text style={st.emptyText}>No open jobs right now — check back soon.</Text></Card>
+        ) : (
+          <View style={st.listCard}>
+            {recommended.map((m, i) => (
+              <ListRow
+                key={m.job.id}
+                icon="briefcase-outline"
+                iconTone={m.matchScore >= 70 ? "green" : m.matchScore >= 40 ? "primary" : "muted"}
+                title={m.job.title}
+                sub={`${formatINR(m.job.wagePerDay)}/day · ${m.job.location}`}
+                trailing={
+                  <Badge
+                    label={`${Math.round(m.matchScore)}%`}
+                    tone={m.matchScore >= 70 ? "green" : m.matchScore >= 40 ? "orange" : "gray"}
+                  />
+                }
+                divider={i < recommended.length - 1}
+                onPress={() => router.push({ pathname: "/(worker)/jobs/[id]", params: { id: m.job.id } })}
+              />
+            ))}
+          </View>
+        )}
 
-        {/* Career suggestion */}
-        <Card style={{ marginBottom: S.xl }}>
-          <CardHeader title="Grow your career" subtitle="Personalized for your skill level" />
-          {(() => {
-            const sug = careerSuggestion({
-              profession: profile.profession,
-              experienceYears: profile.experienceYears,
-              expectedDailyWage: profile.expectedDailyWage,
-              cityId: user.location,
-            });
-            return (
-              <Text style={styles.emptyText}>
-                {sug.underpaid
-                  ? `You may be underpaid — market rate is ${formatINR(sug.fairWage)}/day vs your ${formatINR(sug.currentWage)}/day.`
-                  : sug.nextProfession
-                    ? `Next step: ${sug.nextProfession}${sug.nextWage ? ` (est. ${formatINR(sug.nextWage)}/day)` : ""}.`
-                    : "Your wage matches the market rate — keep building trust!"}
-              </Text>
-            );
-          })()}
-          <Button label="Open Career Roadmap" variant="secondary" onPress={() => router.push("/(worker)/career")} fullWidth />
-        </Card>
+        {/* AI career tip */}
+        {careerTip && (
+          <Card style={{ marginBottom: S.xl }}>
+            <CardHeader title="Grow your career" subtitle="Personalized for your skill level" />
+            <View style={st.tipBox}>
+              <View style={st.tipIcon}>
+                <Icon name="sparkles" size={18} color={C.purple} />
+              </View>
+              <Text style={st.tipText}>{careerTip}</Text>
+            </View>
+            <Pressable onPress={() => router.push("/(worker)/career")} style={st.tipLink} hitSlop={8}>
+              <Text style={st.tipLinkText}>Open career roadmap</Text>
+              <Icon name="chevron-forward" size={14} color={C.primary} />
+            </Pressable>
+          </Card>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
   scroll: { padding: S.lg, paddingBottom: S.xxxl },
-  header: { flexDirection: "row", alignItems: "center", gap: S.lg, marginBottom: S.md },
-  greeting: { fontSize: T.xl, fontWeight: "900", color: C.navy900, marginBottom: S.sm },
-  availBtn: { flexDirection: "row", alignItems: "center", gap: S.sm, paddingVertical: S.xs },
-  availHint: { fontSize: T.xs, color: C.gray500, fontWeight: "600" },
-  trend: { fontSize: T.xs, color: C.gray600, fontWeight: "700", marginBottom: S.lg, marginLeft: 2 },
-  moneyRow: { flexDirection: "row", gap: S.sm, marginBottom: S.lg },
-  moneyCard: {
-    flex: 1,
-    backgroundColor: C.white,
-    borderRadius: R.md,
-    borderWidth: 1,
-    borderColor: C.gray200,
-    padding: S.md,
-    gap: 4,
-  },
-  moneyLabel: { fontSize: T.xs, color: C.gray500, fontWeight: "600" },
-  moneyValue: { fontSize: T.lg, fontWeight: "900", color: C.navy900 },
-  checkPct: { fontSize: T.xl, fontWeight: "900", color: C.orange600 },
-  checkItem: { fontSize: T.sm, color: C.navy800, fontWeight: "600", lineHeight: 24 },
-  recRow: {
+  hero: {
     flexDirection: "row",
     alignItems: "center",
     gap: S.md,
-    paddingVertical: S.md,
-    borderBottomWidth: 1,
-    borderBottomColor: C.gray100,
+    marginBottom: S.md,
   },
-  recTitle: { fontSize: T.base, fontWeight: "700", color: C.navy900 },
-  recSub: { fontSize: T.xs, color: C.gray500, marginTop: 2 },
-  matchBadge: { borderRadius: R.sm, paddingHorizontal: S.md, paddingVertical: S.xs },
-  matchText: { fontSize: T.sm, fontWeight: "800" },
-  emptyText: { fontSize: T.sm, color: C.gray600, lineHeight: 20, marginBottom: S.md },
+  greeting: { fontSize: T.caption, color: C.text2, fontWeight: "600" },
+  name: { fontSize: T.title + 4, fontWeight: "800", color: C.text, marginBottom: S.xs },
+  availBtn: { flexDirection: "row", alignItems: "center", gap: S.sm, paddingVertical: S.xs },
+  availHint: { fontSize: T.tiny, color: C.text3, fontWeight: "600" },
+  trendRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: S.xs },
+  trendText: { fontSize: T.caption, fontWeight: "700" },
+  checkPct: { fontSize: T.title, fontWeight: "800", color: C.primary },
+  listCard: {
+    backgroundColor: C.surface,
+    borderRadius: R.lg,
+    paddingHorizontal: S.md,
+    paddingVertical: S.xs,
+    marginBottom: S.md,
+    ...shadow,
+  },
+  tipBox: { flexDirection: "row", gap: S.md, alignItems: "flex-start" },
+  tipIcon: {
+    width: 36, height: 36,
+    borderRadius: 11,
+    backgroundColor: C.purpleSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tipText: { flex: 1, fontSize: T.body, color: C.text2, lineHeight: 22, fontWeight: "500" },
+  tipLink: { flexDirection: "row", alignItems: "center", gap: 2, marginTop: S.md },
+  tipLinkText: { color: C.primary, fontSize: T.caption, fontWeight: "700" },
+  emptyText: { color: C.text2, fontSize: T.body, lineHeight: 22 },
 });

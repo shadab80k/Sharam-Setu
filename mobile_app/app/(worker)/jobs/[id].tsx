@@ -1,11 +1,11 @@
 /**
- * Job detail — full job info, AI match reasons, contractor card,
- * apply / withdraw / save actions.
+ * Job detail (V3) — match reasons checklist, detail rows, contractor card,
+ * bottom Apply bar. Apply / Withdraw / Save all real API actions.
  */
 import React, { useMemo, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Linking, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Linking } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useStore } from "@/store";
 import { calculateMatchScore } from "@/services/jobMatching";
 import { CITIES } from "@/utils/cities";
@@ -14,11 +14,15 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { StatusBadge } from "@/components/ui/Badge";
+import { Icon } from "@/components/ui/Icon";
+import { ListRow } from "@/components/ui/ListRow";
+import { Chip } from "@/components/ui/Chips";
 import { C, T, R, S } from "@/theme/tokens";
 
 export default function JobDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const user = useStore((s) => s.currentUser);
   const job = useStore((s) => s.jobs.find((j) => j.id === id));
   const profile = useStore((s) => s.workerProfiles.find((p) => p.userId === s.currentUser?.id));
@@ -55,10 +59,10 @@ export default function JobDetail() {
 
   if (!job || !profile || !user) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <Pressable onPress={() => router.back()} style={styles.back}><Text style={styles.backText}>← Back</Text></Pressable>
+      <SafeAreaView style={st.safe} edges={["top"]}>
+        <TopBar onBack={() => router.back()} />
         <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-          <Text style={{ color: C.gray500 }}>Job not found.</Text>
+          <Text style={{ color: C.text2 }}>Job not found.</Text>
         </View>
       </SafeAreaView>
     );
@@ -68,68 +72,57 @@ export default function JobDetail() {
   const isHired = myApp?.status === "selected" || myApp?.status === "completed";
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} hitSlop={12}><Text style={styles.backText}>← Back</Text></Pressable>
-        <Pressable onPress={() => toggleSaveJob(job.id)} hitSlop={12}>
-          <Text style={styles.saveStar}>{saved ? "★" : "☆"}</Text>
-        </Pressable>
-      </View>
+    <SafeAreaView style={st.safe} edges={["top"]}>
+      <TopBar onBack={() => router.back()} saved={saved} onToggleSave={() => toggleSaveJob(job.id)} />
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={[st.scroll, { paddingBottom: 120 + insets.bottom }]}>
+        {/* Title block */}
+        <Text style={st.title}>{job.title}</Text>
+        <View style={st.metaRow}>
+          <StatusBadge status={job.status} />
+          <Text style={st.meta} numberOfLines={1}>
+            {job.category} · {job.location}{match && match.distanceKm > 0 ? ` (${match.distanceKm} km)` : ""}
+          </Text>
+        </View>
+
         {/* Match banner */}
         {match && !isClosed && (
-          <View style={[styles.matchBanner, { backgroundColor: match.matchScore >= 70 ? C.green100 : match.matchScore >= 40 ? C.orange100 : C.gray100 }]}>
-            <Text style={[styles.matchBig, { color: match.matchScore >= 70 ? C.green600 : match.matchScore >= 40 ? C.orange600 : C.gray600 }]}>
+          <View style={[st.matchBanner, { backgroundColor: match.matchScore >= 70 ? C.greenSoft : match.matchScore >= 40 ? C.primarySoft : C.muted }]}>
+            <Text style={[st.matchBig, { color: match.matchScore >= 70 ? C.green : match.matchScore >= 40 ? C.primary : C.text2 }]}>
               {Math.round(match.matchScore)}%
             </Text>
             <View style={{ flex: 1 }}>
-              <Text style={styles.matchLabel}>AI match score for you</Text>
+              <Text style={st.matchLabel}>AI match for you</Text>
               {match.reasons.length > 0 && (
-                <Text style={styles.matchReasons} numberOfLines={3}>{match.reasons.join(" · ")}</Text>
+                <View style={st.reasons}>
+                  {match.reasons.slice(0, 4).map((r, i) => (
+                    <View key={i} style={st.reasonRow}>
+                      <Icon name="checkmark-circle" size={14} color={C.green} />
+                      <Text style={st.reasonText}>{r}</Text>
+                    </View>
+                  ))}
+                </View>
               )}
             </View>
           </View>
         )}
 
-        <Text style={styles.title}>{job.title}</Text>
-        <View style={styles.metaRow}>
-          <StatusBadge status={job.status} />
-          <Text style={styles.meta}>{job.category}</Text>
-          <Text style={styles.meta}>·</Text>
-          <Text style={styles.meta}>{job.location}{match && match.distanceKm > 0 ? ` (${match.distanceKm} km)` : ""}</Text>
-        </View>
-
-        {/* Wage + dates grid */}
-        <View style={styles.grid}>
-          <View style={styles.gridCell}>
-            <Text style={styles.gridLabel}>Daily wage</Text>
-            <Text style={[styles.gridValue, { color: C.orange600 }]}>{formatINR(job.wagePerDay)}</Text>
-          </View>
-          <View style={styles.gridCell}>
-            <Text style={styles.gridLabel}>Payment</Text>
-            <Text style={styles.gridValue}>{job.paymentFrequency}</Text>
-          </View>
-          <View style={styles.gridCell}>
-            <Text style={styles.gridLabel}>Starts</Text>
-            <Text style={styles.gridValue}>{formatDate(job.startDate)}</Text>
-          </View>
-          <View style={styles.gridCell}>
-            <Text style={styles.gridLabel}>Workers</Text>
-            <Text style={styles.gridValue}>{job.workersHired}/{job.workersNeeded} hired</Text>
-          </View>
+        {/* Key facts */}
+        <View style={st.grid}>
+          <Fact icon="cash-outline" label="Daily wage" value={`${formatINR(job.wagePerDay)}`} tone="primary" />
+          <Fact icon="calendar-outline" label="Payment" value={job.paymentFrequency} tone="blue" />
+          <Fact icon="flag-outline" label="Starts" value={formatDate(job.startDate)} tone="purple" />
+          <Fact icon="people-outline" label="Workers" value={`${job.workersHired}/${job.workersNeeded}`} tone="amber" />
         </View>
 
         {/* Description */}
         <Card>
           <CardHeader title="About this job" />
-          <Text style={styles.body}>{job.description}</Text>
+          <Text style={st.body}>{job.description}</Text>
           {job.requiredSkills.length > 0 && (
-            <View style={styles.skillWrap}>
+            <View style={st.skillWrap}>
               {job.requiredSkills.map((s) => (
-                <View key={s} style={styles.skillChip}>
-                  <Text style={styles.skillText}>{s}</Text>
-                </View>
+                <Chip key={s} label={s} small />
               ))}
             </View>
           )}
@@ -138,9 +131,15 @@ export default function JobDetail() {
         {/* Safety notes */}
         {job.safetyNotes && (
           <Card>
-            <CardHeader title="🦺 Safety notes" />
+            <CardHeader
+              title="Safety notes"
+              right={<View style={st.safeIcon}><Icon name="shield-checkmark" size={16} color={C.green} /></View>}
+            />
             {job.safetyNotes.split(".").filter(Boolean).map((note, i) => (
-              <Text key={i} style={styles.body}>• {note.trim()}.</Text>
+              <View key={i} style={st.reasonRow}>
+                <Icon name="checkmark" size={13} color={C.green} />
+                <Text style={st.body}>{note.trim()}.</Text>
+              </View>
             ))}
           </Card>
         )}
@@ -149,22 +148,13 @@ export default function JobDetail() {
         {contractor && contractorUser && (
           <Card>
             <CardHeader title="Posted by" />
-            <View style={styles.contractorRow}>
-              <Avatar src={contractorUser.avatar} name={contractor.companyName} size={48} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.contractorName}>{contractor.companyName}</Text>
-                <Text style={styles.contractorSub}>
-                  {contractor.businessType} · Trust {contractor.trustScore}
-                  {contractor.rating > 0 ? ` · ★ ${contractor.rating.toFixed(1)}` : ""}
-                </Text>
-              </View>
-              <Button
-                label="Call"
-                variant="secondary"
-                size="sm"
-                onPress={() => Linking.openURL(`tel:${contractorUser.phone}`)}
-              />
-            </View>
+            <ListRow
+              avatar={{ src: contractorUser.avatar, name: contractor.companyName }}
+              title={contractor.companyName}
+              sub={`${contractor.businessType} · Trust ${contractor.trustScore}${contractor.rating > 0 ? ` · ★ ${contractor.rating.toFixed(1)}` : ""}`}
+              trailing={<Button label="Call" variant="secondary" size="sm" icon="call-outline" onPress={() => Linking.openURL(`tel:${contractorUser.phone}`)} />}
+              onPress={() => Linking.openURL(`tel:${contractorUser.phone}`)}
+            />
           </Card>
         )}
 
@@ -172,66 +162,126 @@ export default function JobDetail() {
         {myApp && (
           <Card>
             <CardHeader title="Your application" right={<StatusBadge status={myApp.status} />} />
-            <Text style={styles.body}>Applied {formatDate(myApp.appliedAt)} · Match {Math.round(myApp.matchScore)}%</Text>
+            <Text style={st.body}>Applied {formatDate(myApp.appliedAt)} · Match {Math.round(myApp.matchScore)}%</Text>
           </Card>
         )}
       </ScrollView>
 
       {/* Bottom action bar — thumb zone */}
-      <View style={styles.actionBar}>
+      <View style={st.actionBar}>
         {isClosed ? (
-          <Text style={styles.closedText}>This job is {job.status}.</Text>
+          <Text style={st.closedText}>This job is {job.status}.</Text>
         ) : isHired ? (
-          <Text style={styles.hiredText}>🎉 You were hired for this job!</Text>
+          <View style={st.hiredBox}>
+            <Icon name="checkmark-circle" size={20} color={C.green} />
+            <Text style={st.hiredText}>You were hired for this job!</Text>
+          </View>
         ) : myApp ? (
-          <Button label="Withdraw Application" variant="destructive" onPress={handleWithdraw} loading={busy} fullWidth />
+          <Button label="Withdraw Application" variant="danger" onPress={handleWithdraw} loading={busy} fullWidth />
         ) : (
-          <Button label="Apply for this Job" onPress={handleApply} loading={busy} fullWidth />
+          <Button label="Apply for this Job" onPress={handleApply} loading={busy} fullWidth icon="send-outline" />
         )}
       </View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
-  back: { padding: S.lg, paddingBottom: 0 },
+function TopBar({ onBack, saved, onToggleSave }: { onBack: () => void; saved?: boolean; onToggleSave?: () => void }) {
+  return (
+    <View style={st.topBar}>
+      <Pressable onPress={onBack} hitSlop={10} style={st.backBtn}>
+        <Icon name="chevron-back" size={20} color={C.text} />
+      </Pressable>
+      <View style={{ flex: 1 }} />
+      {onToggleSave ? (
+        <Pressable onPress={onToggleSave} hitSlop={10} style={st.saveBtn}>
+          <Icon name={saved ? "bookmark" : "bookmark-outline"} size={19} color={saved ? C.primary : C.text2} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function Fact({ icon, label, value, tone }: { icon: React.ComponentProps<typeof Icon>["name"]; label: string; value: string; tone: "primary" | "blue" | "purple" | "amber" }) {
+  const color = tone === "primary" ? C.primary : tone === "blue" ? C.blue : tone === "purple" ? C.purple : C.amber;
+  return (
+    <View style={st.fact}>
+      <View style={st.factIcon}><Icon name={icon} size={16} color={color} /></View>
+      <View style={{ flex: 1 }}>
+        <Text style={st.factLabel}>{label}</Text>
+        <Text style={st.factValue} numberOfLines={1}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
   topBar: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    paddingHorizontal: S.lg, paddingTop: S.md, paddingBottom: S.xs,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: S.md,
+    paddingTop: S.sm,
+    paddingBottom: S.xs,
+    gap: S.sm,
   },
-  backText: { color: C.gray600, fontSize: T.sm, fontWeight: "700" },
-  saveStar: { fontSize: 26, color: C.orange600 },
-  scroll: { padding: S.lg, paddingTop: S.sm, paddingBottom: S.xxxl, gap: S.lg },
+  backBtn: {
+    width: 38, height: 38,
+    borderRadius: R.pill,
+    backgroundColor: C.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  saveBtn: {
+    width: 38, height: 38,
+    borderRadius: R.pill,
+    backgroundColor: C.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scroll: { padding: S.lg, paddingTop: S.xs, gap: S.md },
+  title: { fontSize: T.title, fontWeight: "800", color: C.text, lineHeight: 27 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: S.sm, flexWrap: "wrap" },
+  meta: { fontSize: T.caption, color: C.text2, fontWeight: "600" },
   matchBanner: {
-    flexDirection: "row", alignItems: "center", gap: S.lg,
-    borderRadius: R.lg, padding: S.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: S.lg,
+    borderRadius: R.lg,
+    padding: S.lg,
   },
-  matchBig: { fontSize: T.xxl, fontWeight: "900" },
-  matchLabel: { fontSize: T.xs, color: C.gray600, fontWeight: "700" },
-  matchReasons: { fontSize: T.xs, color: C.gray500, marginTop: 2 },
-  title: { fontSize: T.xxl, fontWeight: "900", color: C.navy900 },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: S.sm, marginTop: S.xs },
-  meta: { fontSize: T.sm, color: C.gray500, fontWeight: "600" },
+  matchBig: { fontSize: T.title + 8, fontWeight: "800" },
+  matchLabel: { fontSize: T.caption, color: C.text2, fontWeight: "700" },
+  reasons: { marginTop: S.xs, gap: 4 },
+  reasonRow: { flexDirection: "row", alignItems: "center", gap: S.xs + 2 },
+  reasonText: { fontSize: T.tiny, color: C.text2, flex: 1 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: S.sm },
-  gridCell: {
-    flexBasis: "47%",
-    backgroundColor: C.white, borderRadius: R.md, borderWidth: 1, borderColor: C.gray200,
-    padding: S.md, gap: 2,
+  fact: {
+    width: "48.5%",
+    backgroundColor: C.surface,
+    borderRadius: R.md,
+    padding: S.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: S.sm,
   },
-  gridLabel: { fontSize: T.xs, color: C.gray500, fontWeight: "600" },
-  gridValue: { fontSize: T.md, fontWeight: "800", color: C.navy900, textTransform: "capitalize" },
-  body: { fontSize: T.sm, color: C.gray700, lineHeight: 22, marginBottom: S.sm },
+  factIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: C.muted, alignItems: "center", justifyContent: "center" },
+  factLabel: { fontSize: T.tiny, color: C.text3, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 },
+  factValue: { fontSize: T.body, fontWeight: "700", color: C.text, textTransform: "capitalize", marginTop: 1 },
+  body: { fontSize: T.caption + 1, color: C.text2, lineHeight: 22, flex: 1 },
   skillWrap: { flexDirection: "row", flexWrap: "wrap", gap: S.sm, marginTop: S.xs },
-  skillChip: { backgroundColor: C.blue100, borderRadius: R.pill, paddingHorizontal: S.md, paddingVertical: 4 },
-  skillText: { color: C.blue600, fontSize: T.xs, fontWeight: "700" },
-  contractorRow: { flexDirection: "row", alignItems: "center", gap: S.md, marginTop: S.xs },
-  contractorName: { fontSize: T.base, fontWeight: "800", color: C.navy900 },
-  contractorSub: { fontSize: T.xs, color: C.gray500, marginTop: 2 },
+  safeIcon: { width: 30, height: 30, borderRadius: 10, backgroundColor: C.greenSoft, alignItems: "center", justifyContent: "center" },
   actionBar: {
-    paddingHorizontal: S.lg, paddingTop: S.md, paddingBottom: S.xl,
-    backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.gray200,
+    position: "absolute",
+    left: 0, right: 0, bottom: 0,
+    paddingHorizontal: S.lg,
+    paddingTop: S.md,
+    paddingBottom: S.md,
+    backgroundColor: C.surface,
+    borderTopWidth: 1,
+    borderTopColor: C.hairline,
   },
-  closedText: { textAlign: "center", color: C.gray600, fontWeight: "700", paddingVertical: S.md },
-  hiredText: { textAlign: "center", color: C.green600, fontWeight: "800", fontSize: T.base, paddingVertical: S.md },
+  closedText: { textAlign: "center", color: C.text2, fontWeight: "600", paddingVertical: S.md },
+  hiredBox: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: S.sm, paddingVertical: S.md },
+  hiredText: { color: C.green, fontWeight: "800", fontSize: T.body },
 });
