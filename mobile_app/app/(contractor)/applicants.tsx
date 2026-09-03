@@ -1,19 +1,21 @@
 /**
- * Contractor Applicants — pipeline tabs across all my jobs,
- * with shortlist/reject/hire + tel: call actions.
+ * Contractor Applicants (V3) — segmented pipeline tabs across all jobs,
+ * shortlist/reject/hire + call actions.
  */
 import React, { useMemo, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Linking, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Linking, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "@/store";
 import { formatDate } from "@/utils";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { StatusBadge } from "@/components/ui/Badge";
+import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
-import { Tabs, EmptyState } from "@/components/ui/Feedback";
+import { Tabs } from "@/components/ui/Tabs";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonRow } from "@/components/ui/Avatar";
+import { Icon } from "@/components/ui/Icon";
 import { C, T, R, S } from "@/theme/tokens";
 
 const TABS = [
@@ -52,18 +54,25 @@ export default function ContractorApplicants() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={styles.head}>
-        <Text style={styles.title}>Applicants</Text>
-        <Text style={styles.sub}>Across all your jobs</Text>
+    <SafeAreaView style={st.safe} edges={["top"]}>
+      <View style={st.head}>
+        <Text style={st.title}>Applicants</Text>
+        <Text style={st.sub}>Across all your jobs</Text>
       </View>
-      <Tabs value={tab} onChange={setTab} items={TABS} />
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <View style={st.tabWrap}>
+        <Tabs
+          value={tab}
+          onChange={setTab}
+          items={TABS.map((t) => ({ ...t, count: apps.filter((a) => t.statuses.includes(a.status)).length }))}
+        />
+      </View>
+      <ScrollView contentContainerStyle={st.scroll}>
         {loading && list.length === 0 ? (
           Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)
         ) : list.length === 0 ? (
           <EmptyState
-            icon={<Text style={{ fontSize: 40 }}>📋</Text>}
+            icon="documents-outline"
+            tone="blue"
             message={`No ${active.label.toLowerCase()} applicants right now.`}
             ctaLabel="Find Workers"
             onCta={() => router.push("/(contractor)/workers")}
@@ -82,28 +91,31 @@ export default function ContractorApplicants() {
                   subtitle={`${job.title} · applied ${formatDate(a.appliedAt)}`}
                   right={<StatusBadge status={a.status} />}
                 />
-                <View style={styles.row}>
+                <View style={st.row}>
                   <Avatar src={u.avatar} name={u.name} size={44} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.match}>{Math.round(a.matchScore)}% match</Text>
-                    <Text style={styles.meta}>
+                    <Badge label={`${Math.round(a.matchScore)}% match`} tone={a.matchScore >= 70 ? "green" : "orange"} />
+                    <Text style={st.meta}>
                       {w.profession} · {w.completedJobs} jobs · ★ {w.rating.toFixed(1)} · Trust {w.trustScore}
                     </Text>
                     {a.matchReasons.length > 0 && (
-                      <Text style={styles.reasons} numberOfLines={2}>💡 {a.matchReasons.join(" · ")}</Text>
+                      <View style={st.reasons}>
+                        <Icon name="sparkles" size={12} color={C.purple} />
+                        <Text style={st.reasonsText} numberOfLines={2}>{a.matchReasons.join(" · ")}</Text>
+                      </View>
                     )}
                   </View>
                 </View>
-                <View style={styles.actions}>
-                  <Button label="📞" variant="secondary" size="sm" onPress={() => Linking.openURL(`tel:${u.phone}`)} />
+                <View style={st.actions}>
+                  <Button label="Call" variant="secondary" size="sm" icon="call-outline" onPress={() => Linking.openURL(`tel:${u.phone}`)} />
                   {canAct && (a.status === "applied" || a.status === "viewed") && (
                     <>
                       <Button label="Shortlist" size="sm" onPress={() => updateApp(a.id, "shortlisted")} />
-                      <Button label="Reject" variant="ghost" size="sm" onPress={() => updateApp(a.id, "rejected")} />
+                      <Button label="Reject" variant="danger" size="sm" onPress={() => updateApp(a.id, "rejected")} />
                     </>
                   )}
                   {canAct && (a.status === "shortlisted" || a.status === "interview") && (
-                    <Button label="Hire" variant="success" size="sm" onPress={() => confirmHire(a.id, u.name)} />
+                    <Button label="Hire" size="sm" onPress={() => confirmHire(a.id, u.name)} />
                   )}
                 </View>
               </Card>
@@ -115,15 +127,16 @@ export default function ContractorApplicants() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
-  head: { paddingHorizontal: S.lg, paddingTop: S.lg, paddingBottom: S.xs },
-  title: { fontSize: T.xxl, fontWeight: "900", color: C.navy900 },
-  sub: { fontSize: T.sm, color: C.gray500, marginTop: 2 },
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
+  head: { paddingHorizontal: S.lg, paddingTop: S.lg, paddingBottom: S.sm },
+  tabWrap: { paddingHorizontal: S.lg, marginBottom: S.sm },
+  title: { fontSize: T.title + 4, fontWeight: "800", color: C.text },
+  sub: { fontSize: T.caption + 1, color: C.text2, marginTop: 2 },
   scroll: { padding: S.lg, paddingTop: S.sm, paddingBottom: S.xxxl, gap: S.md },
   row: { flexDirection: "row", gap: S.md, alignItems: "center", marginBottom: S.md },
-  match: { fontSize: T.sm, fontWeight: "900", color: C.orange600 },
-  meta: { fontSize: T.xs, color: C.gray500, marginTop: 1 },
-  reasons: { fontSize: T.xs, color: C.gray500, marginTop: 2, lineHeight: 16 },
+  meta: { fontSize: T.tiny, color: C.text2, marginTop: S.xs },
+  reasons: { flexDirection: "row", gap: S.xs, alignItems: "center", marginTop: S.xs },
+  reasonsText: { fontSize: T.tiny, color: C.text3, flex: 1, lineHeight: 15 },
   actions: { flexDirection: "row", gap: S.sm, flexWrap: "wrap" },
 });

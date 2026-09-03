@@ -1,18 +1,22 @@
 /**
- * Contractor Payments — wage ledger with mark-paid, plus create a wage
- * record for a hired worker (POST /api/payments requires workerId).
+ * Contractor Payments (V3) — summary StatTiles, wage ledger ListRows with
+ * Mark Paid, New Wage Record Sheet (job → hired worker → amount).
  */
 import React, { useMemo, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "@/store";
 import { formatINR, formatDate } from "@/utils";
-import { Card, CardHeader } from "@/components/ui/Card";
+import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/Badge";
-import { Sheet, EmptyState } from "@/components/ui/Feedback";
-import { Input, Chip } from "@/components/ui/Input";
+import { Sheet } from "@/components/ui/Sheet";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Field } from "@/components/ui/Field";
+import { Picker } from "@/components/ui/Picker";
+import { ListRow } from "@/components/ui/ListRow";
 import { SkeletonRow } from "@/components/ui/Avatar";
+import { StatTile, StatRow } from "@/components/ui/StatTile";
 import { C, T, R, S } from "@/theme/tokens";
 
 export default function ContractorPayments() {
@@ -28,7 +32,6 @@ export default function ContractorPayments() {
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ jobId: "", workerId: "", amount: "", dueDate: new Date().toISOString().slice(0, 10), method: "UPI", markPaid: false });
 
-  // Hired workers per job — (jobId, workerId) pairs from selected/completed apps
   const hiredPairs = useMemo(
     () => apps.filter((a) => ["selected", "completed"].includes(a.status)),
     [apps]
@@ -61,97 +64,101 @@ export default function ContractorPayments() {
   const formWorkerOptions = hiredPairs.filter((a) => a.jobId === form.jobId);
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={styles.head}>
-        <Text style={styles.title}>Payments</Text>
-        <Button label="+ Wage Record" size="sm" onPress={() => setCreateOpen(true)} />
+    <SafeAreaView style={st.safe} edges={["top"]}>
+      <View style={st.head}>
+        <View style={{ flex: 1 }}>
+          <Text style={st.title}>Payments</Text>
+        </View>
+        <Button label="Wage Record" size="sm" icon="add" onPress={() => setCreateOpen(true)} />
       </View>
 
       {/* Summary */}
-      <View style={styles.sumRow}>
-        <View style={styles.sumCell}>
-          <Text style={styles.sumLabel}>Paid to date</Text>
-          <Text style={[styles.sumValue, { color: C.green600 }]}>{formatINR(totalPaid)}</Text>
-        </View>
-        <View style={styles.sumCell}>
-          <Text style={styles.sumLabel}>Outstanding</Text>
-          <Text style={[styles.sumValue, { color: C.orange600 }]}>{formatINR(totalDue)}</Text>
-        </View>
-        <View style={styles.sumCell}>
-          <Text style={styles.sumLabel}>Overdue</Text>
-          <Text style={[styles.sumValue, { color: overdue.length ? C.red600 : C.navy900 }]}>{overdue.length}</Text>
-        </View>
+      <View style={st.sumPad}>
+        <StatRow>
+          <StatTile icon="checkmark-circle-outline" label="Paid" value={formatINR(totalPaid)} sub="to date" tone="green" />
+          <StatTile icon="hourglass-outline" label="Due" value={formatINR(totalDue)} sub="outstanding" tone="amber" />
+          <StatTile icon="alert-circle-outline" label="Overdue" value={String(overdue.length)} sub="records" tone={overdue.length ? "red" : "muted"} />
+        </StatRow>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={st.scroll}>
         {loading && sorted.length === 0 ? (
           Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)
         ) : sorted.length === 0 ? (
           <EmptyState
-            icon={<Text style={{ fontSize: 40 }}>💰</Text>}
+            icon="wallet-outline"
+            tone="green"
             message="No wage records yet.\nCreate one for a hired worker."
           />
         ) : (
-          sorted.map((p) => {
-            const job = jobs.find((j) => j.id === p.jobId);
-            const w = users.find((u) => u.id === p.workerId);
-            return (
-              <View key={p.id} style={styles.ledgerRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.ledgerTitle} numberOfLines={1}>{w?.name ?? "Worker"} · {job?.title ?? "Job"}</Text>
-                  <Text style={styles.ledgerMeta}>
-                    Due {formatDate(p.dueDate)} · {p.method}
-                  </Text>
-                </View>
-                <Text style={[styles.ledgerAmount, { color: p.status === "paid" ? C.green600 : p.status === "overdue" ? C.red600 : C.orange600 }]}>
-                  {formatINR(p.amount)}
-                </Text>
-                {p.status === "paid" ? (
-                  <StatusBadge status={p.status} />
-                ) : (
-                  <Button label="Mark Paid" variant="success" size="sm" onPress={() => markPaid(p.id)} />
-                )}
-              </View>
-            );
-          })
+          <View style={st.ledgerCard}>
+            {sorted.map((p, i) => {
+              const job = jobs.find((j) => j.id === p.jobId);
+              const w = users.find((u) => u.id === p.workerId);
+              return (
+                <ListRow
+                  key={p.id}
+                  icon="wallet-outline"
+                  iconTone={p.status === "paid" ? "green" : p.status === "overdue" ? "red" : "amber"}
+                  title={`${w?.name ?? "Worker"} · ${job?.title ?? "Job"}`}
+                  sub={`Due ${formatDate(p.dueDate)} · ${p.method}`}
+                  trailing={
+                    p.status === "paid" ? (
+                      <StatusBadge status={p.status} />
+                    ) : (
+                      <Button label="Mark Paid" variant="secondary" size="sm" onPress={() => markPaid(p.id)} />
+                    )
+                  }
+                  divider={i < sorted.length - 1}
+                />
+              );
+            })}
+          </View>
         )}
       </ScrollView>
 
       {/* Create wage record sheet */}
       <Sheet open={createOpen} onClose={() => setCreateOpen(false)} title="New Wage Record">
-        <Text style={styles.label}>Job</Text>
-        <View style={styles.chipWrap}>
-          {formJobOptions.length === 0 && <Text style={styles.hint}>Hire a worker first — records need a hired worker.</Text>}
-          {formJobOptions.map((j) => (
-            <Chip key={j.id} label={j.title} active={form.jobId === j.id} onPress={() => setForm({ ...form, jobId: j.id, workerId: "" })} small />
-          ))}
-        </View>
-        {form.jobId && (
-          <>
-            <Text style={styles.label}>Worker (hired on this job)</Text>
-            <View style={styles.chipWrap}>
-              {formWorkerOptions.map((a) => {
-                const u = users.find((x) => x.id === a.workerId);
-                return u ? (
-                  <Chip key={a.workerId} label={u.name} active={form.workerId === a.workerId} onPress={() => setForm({ ...form, workerId: a.workerId })} small />
-                ) : null;
-              })}
-            </View>
-          </>
+        {formJobOptions.length === 0 ? (
+          <Text style={st.hint}>Hire a worker first — records need a hired worker.</Text>
+        ) : (
+          <Picker
+            label="Job"
+            value={formJobOptions.find((j) => j.id === form.jobId)?.title ?? ""}
+            options={formJobOptions.map((j) => ({ value: j.id, label: j.title }))}
+            onChange={(v) => setForm({ ...form, jobId: v, workerId: "" })}
+            placeholder="Select job"
+          />
         )}
-        <Input label="Amount (₹)" value={form.amount} onChangeText={(v) => setForm({ ...form, amount: v.replace(/\D/g, "") })} keyboardType="number-pad" placeholder="950" />
-        <Input label="Due date" value={form.dueDate} onChangeText={(v) => setForm({ ...form, dueDate: v })} placeholder="YYYY-MM-DD" />
-        <Text style={styles.label}>Method</Text>
-        <View style={styles.chipWrap}>
-          {["UPI", "Cash", "Bank"].map((m) => (
-            <Chip key={m} label={m} active={form.method === m} onPress={() => setForm({ ...form, method: m })} small />
-          ))}
-        </View>
-        <Text style={styles.label}>Status</Text>
-        <View style={styles.chipWrap}>
-          <Chip label="Already paid" active={form.markPaid} onPress={() => setForm({ ...form, markPaid: true })} small />
-          <Chip label="Pending" active={!form.markPaid} onPress={() => setForm({ ...form, markPaid: false })} small />
-        </View>
+        {form.jobId && formWorkerOptions.length > 0 && (
+          <Picker
+            label="Worker (hired on this job)"
+            value={users.find((u) => u.id === form.workerId)?.name ?? ""}
+            options={formWorkerOptions.map((a) => {
+              const u = users.find((x) => x.id === a.workerId);
+              return { value: a.workerId, label: u?.name ?? "Worker" };
+            })}
+            onChange={(v) => setForm({ ...form, workerId: v })}
+            placeholder="Select worker"
+          />
+        )}
+        <Field label="Amount (₹)" value={form.amount} onChangeText={(v: string) => setForm({ ...form, amount: v.replace(/\D/g, "") })} keyboardType="number-pad" placeholder="950" />
+        <Field label="Due date" value={form.dueDate} onChangeText={(v: string) => setForm({ ...form, dueDate: v })} placeholder="YYYY-MM-DD" />
+        <Picker
+          label="Method"
+          value={form.method}
+          options={["UPI", "Cash", "Bank"].map((m) => ({ value: m, label: m }))}
+          onChange={(v) => setForm({ ...form, method: v })}
+        />
+        <Picker
+          label="Status"
+          value={form.markPaid ? "Already paid" : "Pending"}
+          options={[
+            { value: "paid", label: "Already paid" },
+            { value: "pending", label: "Pending" },
+          ]}
+          onChange={(v) => setForm({ ...form, markPaid: v === "paid" })}
+        />
         <Button
           label="Create Record"
           onPress={create}
@@ -163,27 +170,17 @@ export default function ContractorPayments() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
-  head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: S.lg, paddingTop: S.lg, paddingBottom: S.sm },
-  title: { fontSize: T.xxl, fontWeight: "900", color: C.navy900 },
-  sumRow: { flexDirection: "row", gap: S.sm, paddingHorizontal: S.lg, marginBottom: S.sm },
-  sumCell: {
-    flex: 1, backgroundColor: C.white, borderRadius: R.md, borderWidth: 1, borderColor: C.gray200,
-    padding: S.md, gap: 2,
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
+  head: { flexDirection: "row", alignItems: "center", paddingHorizontal: S.lg, paddingTop: S.lg, paddingBottom: S.sm },
+  sumPad: { paddingHorizontal: S.lg, marginBottom: S.sm },
+  title: { fontSize: T.title + 4, fontWeight: "800", color: C.text },
+  scroll: { padding: S.lg, paddingTop: S.sm, paddingBottom: S.xxxl },
+  ledgerCard: {
+    backgroundColor: C.surface,
+    borderRadius: R.lg,
+    paddingHorizontal: S.md,
+    paddingVertical: S.xs,
   },
-  sumLabel: { fontSize: T.xs, color: C.gray500, fontWeight: "600" },
-  sumValue: { fontSize: T.md, fontWeight: "900" },
-  scroll: { padding: S.lg, paddingTop: S.sm, paddingBottom: S.xxxl, gap: S.md },
-  ledgerRow: {
-    flexDirection: "row", alignItems: "center", gap: S.md,
-    backgroundColor: C.white, borderRadius: R.md, borderWidth: 1, borderColor: C.gray200,
-    padding: S.md,
-  },
-  ledgerTitle: { fontSize: T.sm, fontWeight: "800", color: C.navy900 },
-  ledgerMeta: { fontSize: T.xs, color: C.gray500, marginTop: 2 },
-  ledgerAmount: { fontSize: T.base, fontWeight: "900" },
-  label: { fontSize: T.sm, fontWeight: "700", color: C.navy900, marginBottom: S.sm },
-  hint: { fontSize: T.xs, color: C.gray500 },
-  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: S.sm, marginBottom: S.lg },
+  hint: { fontSize: T.caption + 1, color: C.text2, lineHeight: 21, marginBottom: S.md },
 });

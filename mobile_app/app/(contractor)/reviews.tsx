@@ -1,6 +1,6 @@
 /**
- * Contractor Reviews — rate completed workers (rating + reliability/skill/safety),
- * see given & received reviews with rating distribution.
+ * Contractor Reviews (V3) — pending-review ListRows, star-pickers ×4 Sheet,
+ * employer rating hero, given-ratings distribution bars.
  */
 import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
@@ -9,17 +9,27 @@ import { useStore } from "@/store";
 import { formatDate } from "@/utils";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Sheet, EmptyState, ProgressBar } from "@/components/ui/Feedback";
-import { Chip, Input } from "@/components/ui/Input";
-import { Avatar } from "@/components/ui/Avatar";
+import { Sheet } from "@/components/ui/Sheet";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import { Field, TextArea } from "@/components/ui/Field";
+import { ListRow } from "@/components/ui/ListRow";
+import { Icon } from "@/components/ui/Icon";
 import { C, T, R, S } from "@/theme/tokens";
 import type { Application } from "@/types";
 
-function Stars({ n, size = 16 }: { n: number; size?: number }) {
+function Stars({ n, size = 15 }: { n: number; size?: number }) {
   return (
-    <Text style={{ fontSize: size, color: C.amber500 }}>
-      {"★".repeat(n)}{"☆".repeat(5 - n)}
-    </Text>
+    <View style={{ flexDirection: "row", gap: 1 }}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Icon
+          key={i}
+          name={i <= n ? "star" : "star-outline"}
+          size={size}
+          color={C.amber}
+        />
+      ))}
+    </View>
   );
 }
 
@@ -66,84 +76,78 @@ export default function ContractorReviews() {
   }
 
   const starRow = (key: "rating" | "reliability" | "skill" | "safety", label: string) => (
-    <View style={styles.starRow}>
-      <Text style={styles.starLabel}>{label}</Text>
-      <View style={styles.chipWrap}>
-        {[1, 2, 3, 4, 5].map((n) => (
-          <Chip key={n} label={"★".repeat(n)} active={form[key] === n} onPress={() => setForm({ ...form, [key]: n })} small />
-        ))}
-      </View>
+    <View style={st.starRow}>
+      <Text style={st.starLabel}>{label}</Text>
+      <PressableStarRow value={form[key]} onChange={(n) => setForm({ ...form, [key]: n })} />
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>Reviews</Text>
-        <Text style={styles.sub}>Rate your workers and see your reputation</Text>
+    <SafeAreaView style={st.safe} edges={["top"]}>
+      <ScrollView contentContainerStyle={st.scroll}>
+        <Text style={st.title}>Reviews</Text>
+        <Text style={st.sub}>Rate your workers and see your reputation</Text>
 
         {/* Pending reviews */}
         <Card>
           <CardHeader title="Workers to review" subtitle="Completed jobs awaiting your rating" />
           {pendingReview.length === 0 ? (
-            <Text style={styles.body}>Nothing pending — reviews you give build your employer reputation too.</Text>
+            <Text style={st.body}>Nothing pending — reviews you give build your employer reputation too.</Text>
           ) : (
-            pendingReview.map((a) => {
-              const w = users.find((u) => u.id === a.workerId);
-              const job = myJobs.find((j) => j.id === a.jobId);
-              if (!w) return null;
-              return (
-                <View key={a.id} style={styles.pendingRow}>
-                  <Avatar src={w.avatar} name={w.name} size={44} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.pendingName}>{w.name}</Text>
-                    <Text style={styles.pendingJob} numberOfLines={1}>{job?.title}</Text>
-                  </View>
-                  <Button
-                    label="Review"
-                    size="sm"
-                    onPress={() => setTarget(a)}
+            <View>
+              {pendingReview.map((a, i) => {
+                const w = users.find((u) => u.id === a.workerId);
+                const job = myJobs.find((j) => j.id === a.jobId);
+                if (!w) return null;
+                return (
+                  <ListRow
+                    key={a.id}
+                    avatar={{ src: w.avatar, name: w.name }}
+                    title={w.name}
+                    sub={job?.title}
+                    trailing={<Button label="Review" size="sm" onPress={() => setTarget(a)} />}
+                    divider={i < pendingReview.length - 1}
                   />
-                </View>
-              );
-            })
+                );
+              })}
+            </View>
           )}
         </Card>
 
         {/* My rating (from workers) */}
         <Card>
           <CardHeader title="Your employer rating" subtitle="What workers say about you" />
-          <View style={styles.ratingHero}>
-            <Text style={styles.ratingNum}>{(profile?.rating ?? 0).toFixed(1)}</Text>
-            <Stars n={Math.round(profile?.rating ?? 0)} size={20} />
-            <Text style={styles.ratingCount}>{receivedReviews.length} review{receivedReviews.length === 1 ? "" : "s"}</Text>
+          <View style={st.ratingHero}>
+            <Text style={st.ratingNum}>{(profile?.rating ?? 0).toFixed(1)}</Text>
+            <Stars n={Math.round(profile?.rating ?? 0)} size={19} />
+            <Text style={st.ratingCount}>{receivedReviews.length} review{receivedReviews.length === 1 ? "" : "s"}</Text>
           </View>
           {receivedReviews.slice(0, 5).map((r) => {
             const w = users.find((u) => u.id === r.reviewerId);
             return (
-              <View key={r.id} style={styles.reviewRow}>
-                <Text style={styles.reviewName}>{w?.name ?? "Worker"}</Text>
+              <View key={r.id} style={st.reviewRow}>
+                <Text style={st.reviewName}>{w?.name ?? "Worker"}</Text>
                 <Stars n={r.rating} />
-                {r.comment ? <Text style={styles.reviewComment}>{r.comment}</Text> : null}
-                <Text style={styles.reviewDate}>{formatDate(r.createdAt)}</Text>
+                {r.comment ? <Text style={st.reviewComment}>{r.comment}</Text> : null}
+                <Text style={st.reviewDate}>{formatDate(r.createdAt)}</Text>
               </View>
             );
           })}
         </Card>
 
         {/* Given distribution */}
-        <Card>
+        <Card style={{ marginBottom: S.xl }}>
           <CardHeader title="Your given ratings" subtitle={`${myReviews.length} review${myReviews.length === 1 ? "" : "s"} by you`} />
           {myReviews.length === 0 ? (
-            <Text style={styles.body}>No reviews given yet.</Text>
+            <Text style={st.body}>No reviews given yet.</Text>
           ) : (
             ratingDist.map((d) => (
-              <View key={d.star} style={styles.distRow}>
-                <Stars n={d.star} size={13} />
+              <View key={d.star} style={st.distRow}>
+                <Stars n={d.star} size={12} />
                 <View style={{ flex: 1 }}>
-                  <ProgressBar value={(d.count / maxDist) * 100} height={6} tone={C.amber500} />
+                  <ProgressBar value={(d.count / maxDist) * 100} height={6} tone={C.amber} />
                 </View>
-                <Text style={styles.distCount}>{d.count}</Text>
+                <Text style={st.distCount}>{d.count}</Text>
               </View>
             ))
           )}
@@ -156,13 +160,11 @@ export default function ContractorReviews() {
         {starRow("reliability", "Reliability")}
         {starRow("skill", "Skill")}
         {starRow("safety", "Safety")}
-        <Input
+        <TextArea
           label="Comment (optional)"
           value={form.comment}
-          onChangeText={(v) => setForm({ ...form, comment: v })}
-          multiline
+          onChangeText={(v: string) => setForm({ ...form, comment: v })}
           placeholder="Great work, on time every day…"
-          style={{ height: 80, textAlignVertical: "top" }}
         />
         <Button label="Submit Review" onPress={submit} fullWidth />
       </Sheet>
@@ -170,25 +172,35 @@ export default function ContractorReviews() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
-  scroll: { padding: S.lg, paddingTop: S.md, paddingBottom: S.xxxl, gap: S.lg },
-  title: { fontSize: T.xxl, fontWeight: "900", color: C.navy900 },
-  sub: { fontSize: T.sm, color: C.gray500, marginTop: 2 },
-  body: { fontSize: T.sm, color: C.gray600, lineHeight: 20 },
-  pendingRow: { flexDirection: "row", alignItems: "center", gap: S.md, paddingVertical: S.sm },
-  pendingName: { fontSize: T.sm, fontWeight: "800", color: C.navy900 },
-  pendingJob: { fontSize: T.xs, color: C.gray500, marginTop: 1 },
+function PressableStarRow({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  return (
+    <View style={st.pressRow}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Pressable key={n} onPress={() => onChange(n)} hitSlop={6} style={st.pressStar}>
+          <Icon name={n <= value ? "star" : "star-outline"} size={26} color={n <= value ? C.amber : C.text3} />
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
+  scroll: { padding: S.lg, paddingTop: S.md, paddingBottom: S.xxxl, gap: S.md },
+  title: { fontSize: T.title + 4, fontWeight: "800", color: C.text },
+  sub: { fontSize: T.caption + 1, color: C.text2, marginTop: 2 },
+  body: { fontSize: T.caption + 1, color: C.text2, lineHeight: 21 },
   ratingHero: { alignItems: "center", gap: S.xs, paddingVertical: S.md },
-  ratingNum: { fontSize: T.xxl, fontWeight: "900", color: C.navy900 },
-  ratingCount: { fontSize: T.xs, color: C.gray500, fontWeight: "600" },
-  reviewRow: { paddingVertical: S.sm, gap: 2, borderTopWidth: 1, borderTopColor: C.gray100, marginTop: S.sm },
-  reviewName: { fontSize: T.sm, fontWeight: "800", color: C.navy900 },
-  reviewComment: { fontSize: T.xs, color: C.gray600, lineHeight: 17 },
-  reviewDate: { fontSize: T.xs, color: C.gray500, marginTop: 2 },
+  ratingNum: { fontSize: T.title + 6, fontWeight: "800", color: C.text },
+  ratingCount: { fontSize: T.caption, color: C.text2, fontWeight: "600" },
+  reviewRow: { paddingVertical: S.sm, gap: 3, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.hairline, marginTop: S.sm },
+  reviewName: { fontSize: T.caption + 1, fontWeight: "700", color: C.text },
+  reviewComment: { fontSize: T.caption, color: C.text2, lineHeight: 18 },
+  reviewDate: { fontSize: T.tiny, color: C.text3, marginTop: 2 },
   distRow: { flexDirection: "row", alignItems: "center", gap: S.md, paddingVertical: S.xs },
-  distCount: { fontSize: T.xs, color: C.gray600, fontWeight: "700", width: 20, textAlign: "right" },
-  starRow: { marginBottom: S.lg },
-  starLabel: { fontSize: T.sm, fontWeight: "700", color: C.navy900, marginBottom: S.sm },
-  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: S.sm },
+  distCount: { fontSize: T.tiny, color: C.text2, fontWeight: "700", width: 20, textAlign: "right" },
+  starRow: { marginBottom: S.lg, gap: S.xs },
+  starLabel: { fontSize: T.caption + 1, fontWeight: "700", color: C.text },
+  pressRow: { flexDirection: "row", gap: S.sm },
+  pressStar: {},
 });

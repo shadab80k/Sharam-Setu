@@ -1,18 +1,22 @@
 /**
- * Contractor Jobs — my jobs list with status, applicants count, edit/close actions.
+ * Contractor Jobs (V3) — my jobs list with status badges, applicant counts,
+ * new-badge, Edit Sheet + Close confirm.
  */
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "@/store";
 import { formatINR, formatDate } from "@/utils";
 import { Button } from "@/components/ui/Button";
-import { StatusBadge } from "@/components/ui/Badge";
-import { EmptyState, Sheet } from "@/components/ui/Feedback";
+import { StatusBadge, Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Sheet } from "@/components/ui/Sheet";
 import { SkeletonRow } from "@/components/ui/Avatar";
-import { Input, Chip } from "@/components/ui/Input";
+import { Field, TextArea } from "@/components/ui/Field";
 import { Card, CardHeader } from "@/components/ui/Card";
+import { Fab } from "@/components/ui/Fab";
+import { Icon } from "@/components/ui/Icon";
 import { C, T, R, S } from "@/theme/tokens";
 import type { Job } from "@/types";
 
@@ -65,23 +69,23 @@ export default function ContractorJobs() {
   );
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={styles.head}>
+    <SafeAreaView style={st.safe} edges={["top"]}>
+      <View style={st.head}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>My Jobs</Text>
+          <Text style={st.title}>My Jobs</Text>
         </View>
-        <Button label="+ Post Job" size="sm" onPress={() => router.push("/(contractor)/jobs/new")} />
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={st.scroll}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => bootstrap()} />}
       >
         {loading && sorted.length === 0 ? (
           Array.from({ length: 3 }).map((_, i) => <SkeletonRow key={i} />)
         ) : sorted.length === 0 ? (
           <EmptyState
-            icon={<Text style={{ fontSize: 40 }}>🧰</Text>}
+            icon="briefcase-outline"
+            tone="primary"
             message="You haven't posted any jobs yet."
             ctaLabel="Post your first job"
             onCta={() => router.push("/(contractor)/jobs/new")}
@@ -97,18 +101,18 @@ export default function ContractorJobs() {
                   subtitle={`${formatINR(job.wagePerDay)}/day · ${job.location} · starts ${formatDate(job.startDate)}`}
                   right={<StatusBadge status={job.status} />}
                 />
-                <View style={styles.jobMetaRow}>
-                  <Text style={styles.jobMeta}>{job.workersHired}/{job.workersNeeded} hired</Text>
-                  <Text style={styles.jobMeta}>{jobApps.length} applicant{jobApps.length === 1 ? "" : "s"}</Text>
+                <View style={st.jobMetaRow}>
+                  <Text style={st.jobMeta}>{job.workersHired}/{job.workersNeeded} hired</Text>
+                  <Text style={st.jobMeta}>{jobApps.length} applicant{jobApps.length === 1 ? "" : "s"}</Text>
                   {newApps > 0 && job.status === "active" && (
-                    <View style={styles.newBadge}><Text style={styles.newBadgeText}>{newApps} new</Text></View>
+                    <Badge label={`${newApps} new`} tone="orange" />
                   )}
                 </View>
                 {job.status === "active" && (
-                  <View style={styles.actions}>
-                    <Button label="View Applicants" size="sm" onPress={() => router.push({ pathname: "/(contractor)/jobs/[id]", params: { id: job.id } })} />
+                  <View style={st.actions}>
+                    <Button label="Applicants" size="sm" icon="people-outline" onPress={() => router.push({ pathname: "/(contractor)/jobs/[id]", params: { id: job.id } })} />
                     <Button label="Edit" variant="secondary" size="sm" onPress={() => openEdit(job)} />
-                    <Button label="Close" variant="destructive" size="sm" onPress={() => handleClose(job)} />
+                    <Button label="Close" variant="danger" size="sm" onPress={() => handleClose(job)} />
                   </View>
                 )}
               </Card>
@@ -117,25 +121,26 @@ export default function ContractorJobs() {
         )}
       </ScrollView>
 
+      {/* Post job FAB */}
+      <Fab icon="add" label="Post Job" onPress={() => router.push("/(contractor)/jobs/new")} />
+
       <Sheet open={!!editJob} onClose={() => setEditJob(null)} title="Edit Job">
-        <Input label="Job title" value={form.title} onChangeText={(v) => setForm({ ...form, title: v })} />
-        <Input label="Description" value={form.description} onChangeText={(v) => setForm({ ...form, description: v })} multiline style={{ height: 90, textAlignVertical: "top" }} />
-        <Input label="Daily wage (₹)" value={form.wagePerDay} onChangeText={(v) => setForm({ ...form, wagePerDay: v.replace(/\D/g, "") })} keyboardType="number-pad" />
-        <Input label="Workers needed" value={form.workersNeeded} onChangeText={(v) => setForm({ ...form, workersNeeded: v.replace(/\D/g, "") })} keyboardType="number-pad" />
+        <Field label="Job title" value={form.title} onChangeText={(v: string) => setForm({ ...form, title: v })} />
+        <TextArea label="Description" value={form.description} onChangeText={(v: string) => setForm({ ...form, description: v })} />
+        <Field label="Daily wage (₹)" value={form.wagePerDay} onChangeText={(v: string) => setForm({ ...form, wagePerDay: v.replace(/\D/g, "") })} keyboardType="number-pad" />
+        <Field label="Workers needed" value={form.workersNeeded} onChangeText={(v: string) => setForm({ ...form, workersNeeded: v.replace(/\D/g, "") })} keyboardType="number-pad" />
         <Button label="Save Changes" onPress={saveEdit} loading={saving} disabled={!form.title.trim()} fullWidth />
       </Sheet>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
   head: { flexDirection: "row", alignItems: "center", paddingHorizontal: S.lg, paddingTop: S.lg, paddingBottom: S.sm },
-  title: { fontSize: T.xxl, fontWeight: "900", color: C.navy900 },
-  scroll: { padding: S.lg, paddingTop: S.sm, paddingBottom: S.xxxl, gap: S.md },
+  title: { fontSize: T.title + 4, fontWeight: "800", color: C.text },
+  scroll: { padding: S.lg, paddingTop: S.sm, paddingBottom: 120, gap: S.md },
   jobMetaRow: { flexDirection: "row", alignItems: "center", gap: S.md, marginBottom: S.md },
-  jobMeta: { fontSize: T.xs, color: C.gray500, fontWeight: "700" },
-  newBadge: { backgroundColor: C.orange600, borderRadius: R.pill, paddingHorizontal: S.md, paddingVertical: 2 },
-  newBadgeText: { color: C.white, fontSize: 10, fontWeight: "800" },
+  jobMeta: { fontSize: T.caption, color: C.text2, fontWeight: "600" },
   actions: { flexDirection: "row", gap: S.sm, flexWrap: "wrap" },
 });

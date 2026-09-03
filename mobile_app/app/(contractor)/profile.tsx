@@ -1,6 +1,6 @@
 /**
- * Contractor Profile — company identity, reputation metrics, edit sheet
- * (name/company/business type/city), avatar upload, links, logout.
+ * Contractor Profile (V3) — company identity, reputation metrics with
+ * payment-reliability bar, links ListRows, edit Sheet, avatar upload.
  */
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Linking } from "react-native";
@@ -13,8 +13,13 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { Sheet, ProgressBar } from "@/components/ui/Feedback";
-import { Input, Chip } from "@/components/ui/Input";
+import { Sheet } from "@/components/ui/Sheet";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import { Field } from "@/components/ui/Field";
+import { Picker } from "@/components/ui/Picker";
+import { StatTile, StatRow } from "@/components/ui/StatTile";
+import { ListRow } from "@/components/ui/ListRow";
+import { Icon } from "@/components/ui/Icon";
 import { C, T, R, S } from "@/theme/tokens";
 
 const BUSINESS_TYPES = ["Residential", "Commercial", "Infrastructure", "Renovation"];
@@ -74,90 +79,93 @@ export default function ContractorProfile() {
   }
 
   const activeJobs = jobs.filter((j) => j.status === "active").length;
-  const paidCount = payments.filter((p) => p.status === "paid").length;
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+    <SafeAreaView style={st.safe} edges={["top"]}>
+      <ScrollView contentContainerStyle={st.scroll}>
         {/* Identity */}
-        <View style={styles.identity}>
+        <View style={st.identity}>
           <Pressable onPress={pickAvatar} disabled={avatarBusy}>
             <Avatar src={user.avatar} name={profile.companyName} size={84} />
-            <View style={styles.camBadge}><Text style={styles.camText}>📷</Text></View>
+            <View style={st.camBadge}>
+              <Icon name="camera" size={13} color={C.onPrimary} />
+            </View>
           </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={styles.name}>{profile.companyName}</Text>
-            <View style={styles.badgeRow}>
+            <Text style={st.name}>{profile.companyName}</Text>
+            <View style={st.badgeRow}>
               <Badge label={profile.businessType || "Contractor"} tone="blue" />
               <Badge label={`★ ${profile.rating.toFixed(1)}`} tone="amber" />
               <Badge label={`Trust ${profile.trustScore}`} tone="green" />
             </View>
-            <Text style={styles.meta}>{user.name} · {city.name}</Text>
+            <Text style={st.meta}>{user.name} · {city.name}</Text>
           </View>
-          <Button label="Edit" variant="secondary" size="sm" onPress={openEdit} />
         </View>
 
         {/* Reputation */}
         <Card>
           <CardHeader title="Your reputation" subtitle="What workers see about you" />
-          <View style={styles.repRow}>
-            <View style={styles.repCell}>
-              <Text style={styles.repNum}>{profile.rating.toFixed(1)}★</Text>
-              <Text style={styles.repLabel}>Worker rating</Text>
-            </View>
-            <View style={styles.repCell}>
-              <Text style={styles.repNum}>{profile.completedJobs}</Text>
-              <Text style={styles.repLabel}>Jobs completed</Text>
-            </View>
-            <View style={styles.repCell}>
-              <Text style={styles.repNum}>{activeJobs}</Text>
-              <Text style={styles.repLabel}>Active jobs</Text>
-            </View>
-          </View>
+          <StatRow>
+            <StatTile label="Rating" value={`${profile.rating.toFixed(1)}★`} sub="worker-rated" tone="amber" />
+            <StatTile label="Jobs" value={String(profile.completedJobs)} sub="completed" tone="green" />
+            <StatTile label="Active" value={String(activeJobs)} sub="jobs now" tone="primary" />
+          </StatRow>
           {profile.paidPayments > 0 && (
             <View style={{ marginTop: S.md }}>
-              <View style={styles.relRow}>
-                <Text style={styles.relLabel}>On-time payment reliability</Text>
-                <Text style={[styles.relValue, { color: profile.paymentReliability >= 70 ? C.green600 : C.orange600 }]}>
+              <View style={st.relRow}>
+                <Text style={st.relLabel}>On-time payment reliability</Text>
+                <Text style={[st.relValue, { color: profile.paymentReliability >= 70 ? C.green : C.primary }]}>
                   {profile.paymentReliability}%
                 </Text>
               </View>
-              <ProgressBar value={profile.paymentReliability} tone={profile.paymentReliability >= 70 ? C.green600 : C.orange600} height={7} />
-              <Text style={styles.relNote}>from {profile.paidPayments} paid wage records — pay on time to keep this high</Text>
+              <ProgressBar
+                value={profile.paymentReliability}
+                tone={profile.paymentReliability >= 70 ? C.green : C.primary}
+                height={7}
+              />
+              <Text style={st.relNote}>from {profile.paidPayments} paid wage records — pay on time to keep this high</Text>
             </View>
           )}
         </Card>
 
         {/* Links */}
-        <Card>
+        <Card style={{ paddingHorizontal: S.md }}>
           {[
-            { icon: "🧰", label: "My Jobs", go: "/(contractor)/jobs" },
-            { icon: "👷", label: "Find Workers", go: "/(contractor)/workers" },
-            { icon: "📋", label: "Applicants", go: "/(contractor)/applicants" },
-            { icon: "💰", label: "Payments", go: "/(contractor)/payments" },
-            { icon: "⭐", label: "Reviews", go: "/(contractor)/reviews" },
-            { icon: "🔔", label: "Notifications", go: "/(contractor)/notifications" },
-          ].map((r) => (
-            <Pressable key={r.go} style={styles.linkRow} onPress={() => router.push(r.go as never)}>
-              <Text style={{ fontSize: 18 }}>{r.icon}</Text>
-              <Text style={styles.linkText}>{r.label}</Text>
-              <Text style={styles.chev}>›</Text>
-            </Pressable>
+            { icon: "briefcase-outline" as const, tone: "primary" as const, label: "My Jobs", go: "/(contractor)/jobs" },
+            { icon: "people-outline" as const, tone: "blue" as const, label: "Find Workers", go: "/(contractor)/workers" },
+            { icon: "documents-outline" as const, tone: "blue" as const, label: "Applicants", go: "/(contractor)/applicants" },
+            { icon: "wallet-outline" as const, tone: "green" as const, label: "Payments", go: "/(contractor)/payments" },
+            { icon: "star-outline" as const, tone: "amber" as const, label: "Reviews", go: "/(contractor)/reviews" },
+            { icon: "notifications-outline" as const, tone: "amber" as const, label: "Notifications", go: "/(contractor)/notifications" },
+          ].map((r, i, arr) => (
+            <ListRow
+              key={r.go}
+              icon={r.icon}
+              iconTone={r.tone}
+              title={r.label}
+              chevron
+              divider={i < arr.length - 1}
+              onPress={() => router.push(r.go as never)}
+            />
           ))}
         </Card>
 
         {/* Support */}
-        <Card>
-          <CardHeader title="Support" />
-          <Pressable style={styles.linkRow} onPress={() => Linking.openURL("mailto:help@shramsetu.in")}>
-            <Text style={{ fontSize: 18 }}>✉️</Text>
-            <Text style={styles.linkText}>help@shramsetu.in</Text>
-          </Pressable>
+        <Card style={{ marginBottom: S.xl, paddingHorizontal: S.md }}>
+          <ListRow
+            icon="mail-outline"
+            iconTone="muted"
+            title="Support"
+            sub="help@shramsetu.in"
+            chevron
+            onPress={() => Linking.openURL("mailto:help@shramsetu.in")}
+          />
         </Card>
 
         <Button
           label="Log out"
-          variant="destructive"
+          variant="danger"
+          icon="log-out-outline"
           onPress={() =>
             Alert.alert("Log out", "Are you sure?", [
               { text: "Cancel", style: "cancel" },
@@ -170,54 +178,41 @@ export default function ContractorProfile() {
 
       {/* Edit sheet */}
       <Sheet open={editOpen} onClose={() => setEditOpen(false)} title="Edit Company Profile">
-        <Input label="Your name" value={form.name} onChangeText={(v) => setForm({ ...form, name: v })} />
-        <Input label="Company name" value={form.companyName} onChangeText={(v) => setForm({ ...form, companyName: v })} />
-        <Text style={styles.label}>Business type</Text>
-        <View style={styles.chipWrap}>
-          {BUSINESS_TYPES.map((b) => (
-            <Chip key={b} label={b} active={form.businessType === b} onPress={() => setForm({ ...form, businessType: b })} small />
-          ))}
-        </View>
-        <Text style={styles.label}>City</Text>
-        <View style={styles.chipWrap}>
-          {CITIES.map((c) => (
-            <Chip key={c.id} label={c.name} active={form.location === c.id} onPress={() => setForm({ ...form, location: c.id })} small />
-          ))}
-        </View>
+        <Field label="Your name" value={form.name} onChangeText={(v: string) => setForm({ ...form, name: v })} />
+        <Field label="Company name" value={form.companyName} onChangeText={(v: string) => setForm({ ...form, companyName: v })} />
+        <Picker
+          label="Business type"
+          value={form.businessType}
+          options={BUSINESS_TYPES.map((b) => ({ value: b, label: b }))}
+          onChange={(v) => setForm({ ...form, businessType: v })}
+        />
+        <Picker
+          label="City"
+          value={CITIES.find((c) => c.id === form.location)?.name ?? ""}
+          options={CITIES.map((c) => ({ value: c.name, label: c.name, sub: c.state }))}
+          onChange={(name) => setForm({ ...form, location: CITIES.find((c) => c.name === name)?.id ?? form.location })}
+        />
         <Button label="Save Changes" onPress={save} loading={saving} disabled={!form.name.trim() || !form.companyName.trim()} fullWidth />
       </Sheet>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
-  scroll: { padding: S.lg, paddingBottom: S.xxxl, gap: S.lg },
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
+  scroll: { padding: S.lg, paddingBottom: S.xxxl, gap: S.md },
   identity: { flexDirection: "row", gap: S.lg, alignItems: "center" },
   camBadge: {
     position: "absolute", right: -4, bottom: -4,
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: C.orange600, alignItems: "center", justifyContent: "center",
+    backgroundColor: C.primary, alignItems: "center", justifyContent: "center",
     borderWidth: 2, borderColor: C.white,
   },
-  camText: { fontSize: 12 },
-  name: { fontSize: T.xl, fontWeight: "900", color: C.navy900, marginBottom: S.sm },
-  badgeRow: { flexDirection: "row", gap: S.sm, flexWrap: "wrap", marginBottom: S.sm },
-  meta: { fontSize: T.xs, color: C.gray500, fontWeight: "600" },
-  repRow: { flexDirection: "row", gap: S.sm },
-  repCell: { flex: 1, alignItems: "center", gap: 2 },
-  repNum: { fontSize: T.xl, fontWeight: "900", color: C.navy900 },
-  repLabel: { fontSize: T.xs, color: C.gray500, fontWeight: "600", textAlign: "center" },
-  relRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: S.xs },
-  relLabel: { fontSize: T.sm, color: C.gray600, fontWeight: "700" },
-  relValue: { fontSize: T.sm, fontWeight: "900" },
-  relNote: { fontSize: T.xs, color: C.gray500, marginTop: S.xs },
-  linkRow: {
-    flexDirection: "row", alignItems: "center", gap: S.md,
-    paddingVertical: S.md, borderBottomWidth: 1, borderBottomColor: C.gray100,
-  },
-  linkText: { flex: 1, fontSize: T.base, fontWeight: "700", color: C.navy900 },
-  chev: { fontSize: 22, color: C.gray300, fontWeight: "700" },
-  label: { fontSize: T.sm, fontWeight: "700", color: C.navy900, marginBottom: S.sm },
-  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: S.sm, marginBottom: S.lg },
+  name: { fontSize: T.title, fontWeight: "800", color: C.text, marginBottom: S.xs },
+  badgeRow: { flexDirection: "row", gap: S.sm, flexWrap: "wrap", marginBottom: S.xs },
+  meta: { fontSize: T.caption, color: C.text2, fontWeight: "500" },
+  relRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: S.xs },
+  relLabel: { fontSize: T.caption + 1, color: C.text2, fontWeight: "600" },
+  relValue: { fontSize: T.body + 1, fontWeight: "800" },
+  relNote: { fontSize: T.tiny, color: C.text3, marginTop: S.xs, lineHeight: 15 },
 });

@@ -1,6 +1,6 @@
 /**
- * Post a Job — single-scroll form with the same validation as web.
- * City sets lat/lng; wage estimator shows fair-pay hints.
+ * Post a Job (V3) — single-scroll form, same validation/save as web.
+ * City Picker, skills chips, wage estimator fair-pay hint, Publish/Draft.
  */
 import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
@@ -12,9 +12,10 @@ import { estimateWage } from "@/services/wageEstimator";
 import { CITIES } from "@/utils/cities";
 import { formatINR } from "@/utils";
 import { Button } from "@/components/ui/Button";
-import { Input, Chip } from "@/components/ui/Input";
-import { ProgressBar } from "@/components/ui/Feedback";
-import { Card, CardHeader } from "@/components/ui/Card";
+import { Chip } from "@/components/ui/Chips";
+import { Field, TextArea } from "@/components/ui/Field";
+import { Picker } from "@/components/ui/Picker";
+import { Icon } from "@/components/ui/Icon";
 import { C, T, R, S } from "@/theme/tokens";
 
 export default function NewJob() {
@@ -52,7 +53,6 @@ export default function NewJob() {
 
   const valid =
     form.title.trim().length >= 4 &&
-    form.description.trim().length >= 0 &&
     Number(form.wagePerDay) >= 1 &&
     Number(form.workersNeeded) >= 1 &&
     !!form.location;
@@ -84,37 +84,38 @@ export default function NewJob() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <SafeAreaView style={st.safe} edges={["top", "bottom"]}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>Post a Job</Text>
-          <Text style={styles.sub}>Workers matched by AI within minutes</Text>
+        <ScrollView contentContainerStyle={st.scroll} keyboardShouldPersistTaps="handled">
+          <Text style={st.title}>Post a Job</Text>
+          <Text style={st.sub}>Workers matched by AI within minutes</Text>
 
-          <Card>
-            <Input label="Job title" value={form.title} onChangeText={(v) => setForm({ ...form, title: v })} placeholder="Mason — Residential Building" />
-            <Input label="Description" value={form.description} onChangeText={(v) => setForm({ ...form, description: v })} multiline placeholder="What the work involves…" style={{ height: 90, textAlignVertical: "top" }} />
+          <View style={st.formCard}>
+            <Field label="Job title" value={form.title} onChangeText={(v: string) => setForm({ ...form, title: v })} placeholder="Mason — Residential Building" />
+            <TextArea label="Description" value={form.description} onChangeText={(v: string) => setForm({ ...form, description: v })} placeholder="What the work involves…" />
 
-            <Text style={styles.label}>Category (trade)</Text>
-            <View style={styles.chipWrap}>
-              {PROFESSION_NAMES.map((p) => (
-                <Chip key={p} label={p} active={form.category === p} onPress={() => setForm({ ...form, category: p, requiredSkills: [] })} small />
-              ))}
-            </View>
+            <Picker
+              label="Category (trade)"
+              value={form.category}
+              options={PROFESSION_NAMES.map((p) => ({ value: p, label: p }))}
+              onChange={(v) => setForm({ ...form, category: v, requiredSkills: [] })}
+            />
 
-            <Text style={styles.label}>Required skills (tap to add)</Text>
-            <View style={styles.chipWrap}>
+            <Text style={st.label}>Required skills (tap to add)</Text>
+            <View style={st.chipWrap}>
               {professionSkills(form.category).map((s) => (
                 <Chip key={s} label={s} active={form.requiredSkills.includes(s)} onPress={() => toggleSkill(s)} small />
               ))}
             </View>
-            <View style={styles.addSkillRow}>
-              <Input
-                label="Add custom skill"
-                value={newSkill}
-                onChangeText={setNewSkill}
-                placeholder="e.g. Waterproofing"
-                style={{ flex: 1 }}
-              />
+            <View style={st.addSkillRow}>
+              <View style={{ flex: 1 }}>
+                <Field
+                  label="Add custom skill"
+                  value={newSkill}
+                  onChangeText={setNewSkill}
+                  placeholder="e.g. Waterproofing"
+                />
+              </View>
               <Button
                 label="Add"
                 variant="secondary"
@@ -124,47 +125,54 @@ export default function NewJob() {
               />
             </View>
 
-            <Input label="Daily wage (₹)" value={form.wagePerDay} onChangeText={(v) => setForm({ ...form, wagePerDay: v.replace(/\D/g, "") })} keyboardType="number-pad" placeholder="950" />
-            <View style={styles.estBox}>
-              <Text style={styles.estLabel}>
-                💡 Fair pay for {form.category} in {(CITIES.find((c) => c.id === form.location) ?? CITIES[0]).name}: {formatINR(wageEst.low)} – {formatINR(wageEst.high)}/day
-              </Text>
-              {form.wagePerDay !== "" && Number(form.wagePerDay) < wageEst.low && (
-                <Text style={styles.estWarn}>Below the estimated market rate — few workers may apply.</Text>
-              )}
+            <Field label="Daily wage (₹)" value={form.wagePerDay} onChangeText={(v: string) => setForm({ ...form, wagePerDay: v.replace(/\D/g, "") })} keyboardType="number-pad" placeholder="950" />
+            <View style={st.estBox}>
+              <View style={st.estIcon}>
+                <Icon name="sparkles" size={14} color={C.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={st.estLabel}>
+                  Fair pay for {form.category} in {(CITIES.find((c) => c.id === form.location) ?? CITIES[0]).name}: {formatINR(wageEst.low)} – {formatINR(wageEst.high)}/day
+                </Text>
+                {form.wagePerDay !== "" && Number(form.wagePerDay) < wageEst.low && (
+                  <Text style={st.estWarn}>Below the estimated market rate — few workers may apply.</Text>
+                )}
+              </View>
             </View>
 
-            <Text style={styles.label}>City</Text>
-            <View style={styles.chipWrap}>
-              {CITIES.map((c) => (
-                <Chip key={c.id} label={c.name} active={form.location === c.id} onPress={() => setForm({ ...form, location: c.id })} small />
-              ))}
-            </View>
+            <Picker
+              label="City"
+              value={CITIES.find((c) => c.id === form.location)?.name ?? ""}
+              options={CITIES.map((c) => ({ value: c.name, label: c.name, sub: c.state }))}
+              onChange={(name) => setForm({ ...form, location: CITIES.find((c) => c.name === name)?.id ?? form.location })}
+            />
 
-            <Input label="Start date (YYYY-MM-DD)" value={form.startDate} onChangeText={(v) => setForm({ ...form, startDate: v })} />
-            <Input label="End date (YYYY-MM-DD)" value={form.endDate} onChangeText={(v) => setForm({ ...form, endDate: v })} />
-            <Input label="Workers needed" value={form.workersNeeded} onChangeText={(v) => setForm({ ...form, workersNeeded: v.replace(/\D/g, "") })} keyboardType="number-pad" />
+            <Field label="Start date (YYYY-MM-DD)" value={form.startDate} onChangeText={(v: string) => setForm({ ...form, startDate: v })} />
+            <Field label="End date (YYYY-MM-DD)" value={form.endDate} onChangeText={(v: string) => setForm({ ...form, endDate: v })} />
+            <Field label="Workers needed" value={form.workersNeeded} onChangeText={(v: string) => setForm({ ...form, workersNeeded: v.replace(/\D/g, "") })} keyboardType="number-pad" />
 
-            <Text style={styles.label}>Payment frequency</Text>
-            <View style={styles.chipWrap}>
-              {(["daily", "weekly", "on-completion"] as const).map((f) => (
-                <Chip key={f} label={f.replace("-", " ")} active={form.paymentFrequency === f} onPress={() => setForm({ ...form, paymentFrequency: f })} small />
-              ))}
-            </View>
+            <Picker
+              label="Payment frequency"
+              value={form.paymentFrequency.replace("-", " ")}
+              options={[
+                { value: "daily", label: "Daily" },
+                { value: "weekly", label: "Weekly" },
+                { value: "on-completion", label: "On completion" },
+              ]}
+              onChange={(v) => setForm({ ...form, paymentFrequency: v as "daily" | "weekly" | "on-completion" })}
+            />
 
-            <Input
+            <TextArea
               label="Safety notes (optional)"
               value={form.safetyNotes}
-              onChangeText={(v) => setForm({ ...form, safetyNotes: v })}
-              multiline
+              onChangeText={(v: string) => setForm({ ...form, safetyNotes: v })}
               placeholder="Hard hat required. Site induction day 1."
-              style={{ height: 70, textAlignVertical: "top" }}
             />
-          </Card>
+          </View>
 
-          <View style={styles.navRow}>
+          <View style={st.navRow}>
             <Button label="Save Draft" variant="secondary" onPress={() => publish("draft")} loading={busy} disabled={!form.title.trim()} />
-            <Button label="Publish Job" onPress={() => publish("active")} loading={busy} disabled={!valid} />
+            <Button label="Publish Job" onPress={() => publish("active")} loading={busy} disabled={!valid} style={{ flex: 1 }} />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -172,16 +180,30 @@ export default function NewJob() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
   scroll: { padding: S.lg, paddingBottom: S.xxxl, gap: S.md },
-  title: { fontSize: T.xxl, fontWeight: "900", color: C.navy900 },
-  sub: { fontSize: T.sm, color: C.gray500, marginBottom: S.xs },
-  label: { fontSize: T.sm, fontWeight: "700", color: C.navy900, marginTop: S.sm, marginBottom: S.xs },
-  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: S.sm },
-  addSkillRow: { flexDirection: "row", alignItems: "flex-end", gap: S.sm, marginTop: S.sm },
-  estBox: { backgroundColor: C.orange100, borderRadius: R.md, padding: S.md, marginTop: S.xs, marginBottom: S.sm },
-  estLabel: { fontSize: T.xs, color: C.orange600, fontWeight: "700", lineHeight: 17 },
-  estWarn: { fontSize: T.xs, color: C.red600, fontWeight: "700", marginTop: S.xs },
-  navRow: { flexDirection: "row", gap: S.md, marginTop: S.sm },
+  title: { fontSize: T.title + 4, fontWeight: "800", color: C.text },
+  sub: { fontSize: T.caption + 1, color: C.text2, marginBottom: S.xs },
+  formCard: {
+    backgroundColor: C.surface,
+    borderRadius: R.lg,
+    padding: S.lg,
+  },
+  label: { fontSize: T.caption, fontWeight: "700", color: C.text, marginTop: S.xs, marginBottom: S.sm },
+  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: S.sm, marginBottom: S.md },
+  addSkillRow: { flexDirection: "row", alignItems: "flex-end", gap: S.sm },
+  estBox: {
+    flexDirection: "row",
+    gap: S.sm,
+    alignItems: "center",
+    backgroundColor: C.primarySoft,
+    borderRadius: R.md,
+    padding: S.md,
+    marginBottom: S.md,
+  },
+  estIcon: { width: 30, height: 30, borderRadius: 10, backgroundColor: C.surface, alignItems: "center", justifyContent: "center" },
+  estLabel: { fontSize: T.tiny, color: C.text2, fontWeight: "600", lineHeight: 16 },
+  estWarn: { fontSize: T.tiny, color: C.red, fontWeight: "700", marginTop: S.xs },
+  navRow: { flexDirection: "row", gap: S.md, marginTop: S.xs },
 });

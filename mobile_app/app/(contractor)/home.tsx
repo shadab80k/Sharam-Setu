@@ -1,9 +1,9 @@
 /**
- * Contractor Home — metrics, applicant pipeline, AI-recommended workers
- * with one-tap invite (job already picked by the match).
+ * Contractor Home (V3) — metrics StatTiles, pipeline card,
+ * AI-recommended workers with one-tap invite Sheet.
  */
 import React, { useMemo, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, ScrollView, RefreshControl } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useStore } from "@/store";
@@ -13,16 +13,19 @@ import { formatINR } from "@/utils";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { Sheet } from "@/components/ui/Feedback";
+import { Sheet } from "@/components/ui/Sheet";
 import { Avatar } from "@/components/ui/Avatar";
-import { C, T, R, S } from "@/theme/tokens";
-import type { ApplicationStatus, Job, User, WorkerProfile, ContractorProfile } from "@/types";
+import { StatTile, StatRow } from "@/components/ui/StatTile";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { Icon } from "@/components/ui/Icon";
+import { C, T, R, S, shadow } from "@/theme/tokens";
+import type { ApplicationStatus, Job, User, WorkerProfile } from "@/types";
 
 const PIPELINE: { key: string; label: string; statuses: ApplicationStatus[] }[] = [
   { key: "new", label: "New", statuses: ["applied"] },
   { key: "shortlisted", label: "Shortlisted", statuses: ["shortlisted"] },
   { key: "selected", label: "On the job", statuses: ["selected"] },
-  { key: "completed", label: "Completed", statuses: ["completed"] },
+  { key: "completed", label: "Done", statuses: ["completed"] },
   { key: "rejected", label: "Rejected", statuses: ["rejected"] },
 ];
 
@@ -59,7 +62,6 @@ export default function ContractorHome() {
 
   const myApps = apps.filter((a) => jobs.some((j) => j.id === a.jobId));
 
-  // Best match for each worker across ALL active jobs with open positions
   const recommended = useMemo<Recommended[]>(() => {
     const openJobs = jobs.filter((j) => j.status === "active" && j.workersHired < j.workersNeeded);
     if (openJobs.length === 0 || !profile) return [];
@@ -97,109 +99,128 @@ export default function ContractorHome() {
   if (!user || !profile) return null;
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <SafeAreaView style={st.safe} edges={["top"]}>
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={st.scroll}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => bootstrap()} />}
       >
-        <View style={styles.head}>
-          <View>
-            <Text style={styles.title}>{profile.companyName}</Text>
-            <Text style={styles.sub}>{profile.businessType} · Trust {profile.trustScore} · ★ {profile.rating.toFixed(1)}</Text>
+        <View style={st.head}>
+          <View style={{ flex: 1 }}>
+            <Text style={st.title}>{profile.companyName}</Text>
+            <Text style={st.sub}>{profile.businessType} · Trust {profile.trustScore} · ★ {profile.rating.toFixed(1)}</Text>
           </View>
-          <Button label="+ Post Job" size="sm" onPress={() => router.push("/(contractor)/jobs/new")} />
+          <Button label="Post Job" size="sm" icon="add" onPress={() => router.push("/(contractor)/jobs/new")} />
         </View>
 
         {/* Metrics */}
-        <View style={styles.metricRow}>
-          <View style={styles.metric}><Text style={styles.metricNum}>{activeJobs}</Text><Text style={styles.metricLabel}>Active jobs</Text></View>
-          <View style={styles.metric}><Text style={styles.metricNum}>{applicants}</Text><Text style={styles.metricLabel}>Applicants</Text></View>
-          <View style={styles.metric}><Text style={styles.metricNum}>{hired}</Text><Text style={styles.metricLabel}>Hired</Text></View>
-          <View style={styles.metric}><Text style={[styles.metricNum, { fontSize: T.base }]}>{formatINR(pendingPayments)}</Text><Text style={styles.metricLabel}>Unpaid</Text></View>
-        </View>
+        <StatRow>
+          <StatTile icon="briefcase-outline" label="Active" value={String(activeJobs)} sub="jobs" tone="primary" onPress={() => router.push("/(contractor)/jobs")} />
+          <StatTile icon="documents-outline" label="Apps" value={String(applicants)} sub="total" tone="blue" onPress={() => router.push("/(contractor)/applicants")} />
+          <StatTile icon="people-outline" label="Hired" value={String(hired)} sub="workers" tone="green" />
+        </StatRow>
 
         {/* Pipeline */}
         <Card>
           <CardHeader title="Applicant pipeline" subtitle="Across all your jobs" />
-          <View style={styles.pipeline}>
+          <View style={st.pipeline}>
             {PIPELINE.map((p) => {
               const count = myApps.filter((a) => p.statuses.includes(a.status)).length;
               return (
-                <Pressable
+                <View
                   key={p.key}
-                  style={styles.pipeCell}
-                  onPress={() => router.push({ pathname: "/(contractor)/applicants", params: { tab: p.key } } as never)}
+                  style={st.pipeCell}
+                  onTouchEnd={() => router.push({ pathname: "/(contractor)/applicants", params: { tab: p.key } } as never)}
                 >
-                  <Text style={styles.pipeNum}>{count}</Text>
-                  <Text style={styles.pipeLabel}>{p.label}</Text>
-                </Pressable>
+                  <Text style={st.pipeNum}>{count}</Text>
+                  <Text style={st.pipeLabel}>{p.label}</Text>
+                </View>
               );
             })}
           </View>
         </Card>
 
         {/* Recommended workers */}
-        <Card>
-          <CardHeader
-            title="Recommended workers"
-            subtitle="AI-matched to your open jobs"
-            right={<Button label="Find more" variant="link" size="sm" onPress={() => router.push("/(contractor)/workers")} />}
-          />
-          {recommended.length === 0 ? (
-            <Text style={styles.empty}>
+        <SectionHeader title="Recommended workers" action="Find more" onAction={() => router.push("/(contractor)/workers")} />
+        {recommended.length === 0 ? (
+          <Card style={{ marginBottom: S.md }}>
+            <Text style={st.empty}>
               {jobs.filter((j) => j.status === "active").length === 0
                 ? "Post a job to get AI worker recommendations."
                 : "All open positions have applications — check the Applicants tab."}
             </Text>
-          ) : (
-            recommended.map((r) => (
-              <Pressable
+          </Card>
+        ) : (
+          <View style={st.listCard}>
+            {recommended.map((r, i) => (
+              <View
                 key={r.worker.userId}
-                style={styles.recRow}
-                onPress={() => setInviteTarget(r)}
+                style={st.recRow}
+                onTouchEnd={() => setInviteTarget(r)}
               >
                 <Avatar src={r.user.avatar} name={r.user.name} size={46} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.recName}>
-                    {r.user.name} {isIdVerified(r.worker.userId) ? "✅" : ""}
-                  </Text>
-                  <Text style={styles.recMeta}>
+                  <View style={st.recNameRow}>
+                    <Text style={st.recName}>{r.user.name}</Text>
+                    {isIdVerified(r.worker.userId) ? (
+                      <View style={st.verifiedBadge}><Icon name="checkmark" size={10} color={C.onPrimary} /></View>
+                    ) : null}
+                  </View>
+                  <Text style={st.recMeta}>
                     {r.worker.profession} · {r.worker.completedJobs} jobs · ★ {r.worker.rating.toFixed(1)}
                   </Text>
-                  <Text style={styles.recJob} numberOfLines={1}>for: {r.job.title}</Text>
+                  <Text style={st.recJob} numberOfLines={1}>for: {r.job.title}</Text>
                 </View>
-                <View style={[styles.matchPill, { backgroundColor: r.match.matchScore >= 70 ? C.green100 : C.orange100 }]}>
-                  <Text style={[styles.matchText, { color: r.match.matchScore >= 70 ? C.green600 : C.orange600 }]}>
-                    {Math.round(r.match.matchScore)}%
-                  </Text>
-                </View>
-              </Pressable>
-            ))
-          )}
-        </Card>
+                <Badge
+                  label={`${Math.round(r.match.matchScore)}%`}
+                  tone={r.match.matchScore >= 70 ? "green" : "orange"}
+                />
+                {i < recommended.length - 1 ? <View style={st.recDivider} /> : null}
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Unpaid nudge */}
+        {pendingPayments > 0 && (
+          <Card style={{ marginBottom: S.xl }}>
+            <View style={st.pendingRow}>
+              <View style={st.pendingIcon}>
+                <Icon name="wallet-outline" size={18} color={C.amber} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={st.pendingTitle}>{formatINR(pendingPayments)} unpaid</Text>
+                <Text style={st.pendingSub}>Pay on time to keep your reliability high</Text>
+              </View>
+              <Button label="View" variant="secondary" size="sm" onPress={() => router.push("/(contractor)/payments")} />
+            </View>
+          </Card>
+        )}
       </ScrollView>
 
       {/* Invite confirm sheet */}
       <Sheet open={!!inviteTarget} onClose={() => setInviteTarget(null)} title="Invite Worker">
         {inviteTarget && (
           <>
-            <View style={styles.inviteHead}>
+            <View style={st.inviteHead}>
               <Avatar src={inviteTarget.user.avatar} name={inviteTarget.user.name} size={64} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.inviteName}>{inviteTarget.user.name}</Text>
-                <Text style={styles.inviteMeta}>
+                <Text style={st.inviteName}>{inviteTarget.user.name}</Text>
+                <Text style={st.inviteMeta}>
                   {inviteTarget.worker.profession} · {formatINR(inviteTarget.worker.expectedDailyWage)}/day · Trust {inviteTarget.worker.trustScore}
                 </Text>
               </View>
             </View>
-            <View style={styles.inviteJob}>
-              <Text style={styles.inviteJobLabel}>Shortlist them for</Text>
-              <Text style={styles.inviteJobName}>{inviteTarget.job.title}</Text>
-              <Text style={styles.inviteJobMeta}>
+            <View style={st.inviteJob}>
+              <Text style={st.inviteJobLabel}>Shortlist them for</Text>
+              <Text style={st.inviteJobName}>{inviteTarget.job.title}</Text>
+              <Text style={st.inviteJobMeta}>
                 {formatINR(inviteTarget.job.wagePerDay)}/day · {inviteTarget.job.location} · {inviteTarget.job.workersHired}/{inviteTarget.job.workersNeeded} hired
               </Text>
               {inviteTarget.match.reasons.length > 0 && (
-                <Text style={styles.inviteReasons}>💡 {inviteTarget.match.reasons.join(" · ")}</Text>
+                <View style={st.reasonRow}>
+                  <Icon name="sparkles" size={13} color={C.purple} />
+                  <Text style={st.reasonText}>{inviteTarget.match.reasons.join(" · ")}</Text>
+                </View>
               )}
             </View>
             <Button
@@ -208,7 +229,7 @@ export default function ContractorHome() {
               loading={busy}
               fullWidth
             />
-            <Text style={styles.inviteNote}>The worker gets a notification and can apply instantly.</Text>
+            <Text style={st.inviteNote}>The worker gets a notification and can apply instantly.</Text>
           </>
         )}
       </Sheet>
@@ -216,40 +237,53 @@ export default function ContractorHome() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
-  scroll: { padding: S.lg, paddingBottom: S.xxxl, gap: S.lg },
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
+  scroll: { padding: S.lg, paddingBottom: S.xxxl, gap: S.md },
   head: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: S.md },
-  title: { fontSize: T.xxl, fontWeight: "900", color: C.navy900 },
-  sub: { fontSize: T.xs, color: C.gray500, marginTop: 2, fontWeight: "600" },
-  metricRow: { flexDirection: "row", gap: S.sm },
-  metric: {
-    flex: 1, backgroundColor: C.white, borderRadius: R.md, borderWidth: 1, borderColor: C.gray200,
-    padding: S.md, alignItems: "center", gap: 2,
-  },
-  metricNum: { fontSize: T.xl, fontWeight: "900", color: C.navy900 },
-  metricLabel: { fontSize: T.xs, color: C.gray500, fontWeight: "600", textAlign: "center" },
+  title: { fontSize: T.title, fontWeight: "800", color: C.text },
+  sub: { fontSize: T.caption, color: C.text2, marginTop: 2, fontWeight: "500" },
   pipeline: { flexDirection: "row", gap: S.sm },
   pipeCell: {
-    flex: 1, backgroundColor: C.cream50, borderRadius: R.md, borderWidth: 1, borderColor: C.gray200,
+    flex: 1, backgroundColor: C.muted, borderRadius: R.md,
     padding: S.md, alignItems: "center", gap: 2,
   },
-  pipeNum: { fontSize: T.xl, fontWeight: "900", color: C.navy900 },
-  pipeLabel: { fontSize: 10, color: C.gray500, fontWeight: "700", textAlign: "center" },
-  recRow: { flexDirection: "row", alignItems: "center", gap: S.md, paddingVertical: S.md, borderBottomWidth: 1, borderBottomColor: C.gray100 },
-  recName: { fontSize: T.sm, fontWeight: "800", color: C.navy900 },
-  recMeta: { fontSize: T.xs, color: C.gray500, marginTop: 1 },
-  recJob: { fontSize: T.xs, color: C.orange600, fontWeight: "700", marginTop: 2 },
-  matchPill: { borderRadius: R.sm, paddingHorizontal: S.md, paddingVertical: S.xs },
-  matchText: { fontSize: T.sm, fontWeight: "800" },
-  empty: { fontSize: T.sm, color: C.gray600, lineHeight: 20 },
-  inviteHead: { flexDirection: "row", alignItems: "center", gap: S.lg, marginBottom: S.lg },
-  inviteName: { fontSize: T.lg, fontWeight: "900", color: C.navy900 },
-  inviteMeta: { fontSize: T.xs, color: C.gray500, marginTop: 2 },
-  inviteJob: { backgroundColor: C.cream100, borderRadius: R.md, padding: S.md, gap: 4, marginBottom: S.lg },
-  inviteJobLabel: { fontSize: T.xs, color: C.gray500, fontWeight: "700" },
-  inviteJobName: { fontSize: T.base, fontWeight: "800", color: C.navy900 },
-  inviteJobMeta: { fontSize: T.xs, color: C.gray600 },
-  inviteReasons: { fontSize: T.xs, color: C.gray600, marginTop: S.xs, lineHeight: 17 },
-  inviteNote: { fontSize: T.xs, color: C.gray500, textAlign: "center", marginTop: S.md },
+  pipeNum: { fontSize: T.title - 4, fontWeight: "800", color: C.text },
+  pipeLabel: { fontSize: 10, color: C.text2, fontWeight: "700", textAlign: "center" },
+  listCard: {
+    backgroundColor: C.surface,
+    borderRadius: R.lg,
+    paddingHorizontal: S.md,
+    paddingVertical: S.xs,
+    marginBottom: S.md,
+    ...shadow,
+  },
+  recRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: S.md,
+    paddingVertical: S.sm + 2,
+    position: "relative",
+  },
+  recNameRow: { flexDirection: "row", alignItems: "center", gap: S.xs },
+  recName: { fontSize: T.caption + 1, fontWeight: "700", color: C.text },
+  verifiedBadge: { width: 15, height: 15, borderRadius: 8, backgroundColor: C.green, alignItems: "center", justifyContent: "center" },
+  recMeta: { fontSize: T.tiny, color: C.text2, marginTop: 1 },
+  recJob: { fontSize: T.tiny, color: C.primary, fontWeight: "700", marginTop: 2 },
+  recDivider: { position: "absolute", left: 46 + S.md, right: 0, bottom: 0, height: StyleSheet.hairlineWidth, backgroundColor: C.hairline },
+  empty: { fontSize: T.caption + 1, color: C.text2, lineHeight: 21 },
+  pendingRow: { flexDirection: "row", alignItems: "center", gap: S.md },
+  pendingIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: C.amberSoft, alignItems: "center", justifyContent: "center" },
+  pendingTitle: { fontSize: T.body + 1, fontWeight: "800", color: C.text },
+  pendingSub: { fontSize: T.tiny, color: C.text2, marginTop: 1 },
+  inviteHead: { flexDirection: "row", alignItems: "center", gap: S.lg, marginBottom: S.md },
+  inviteName: { fontSize: T.body + 2, fontWeight: "800", color: C.text },
+  inviteMeta: { fontSize: T.caption, color: C.text2, marginTop: 2 },
+  inviteJob: { backgroundColor: C.muted, borderRadius: R.md, padding: S.md, gap: 3, marginBottom: S.md },
+  inviteJobLabel: { fontSize: T.tiny, color: C.text2, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.3 },
+  inviteJobName: { fontSize: T.body + 1, fontWeight: "800", color: C.text },
+  inviteJobMeta: { fontSize: T.caption, color: C.text2 },
+  reasonRow: { flexDirection: "row", gap: S.xs + 2, alignItems: "center", marginTop: S.xs },
+  reasonText: { fontSize: T.tiny, color: C.text2, flex: 1, lineHeight: 15 },
+  inviteNote: { fontSize: T.tiny, color: C.text3, textAlign: "center", marginTop: S.md },
 });

@@ -1,8 +1,6 @@
 /**
- * Find Workers — search/filter + invite flow.
- * Tapping Invite opens a job-picker bottom sheet (single-modal pattern
- * from the web fix) listing open jobs; picking one shortlists the worker
- * via /api/applications/invite.
+ * Find Workers (V3) — search + profession chips, worker cards,
+ * Invite → job-picker Sheet (single-modal pattern).
  */
 import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Linking } from "react-native";
@@ -15,9 +13,13 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
-import { Sheet, Tabs, EmptyState } from "@/components/ui/Feedback";
-import { Input } from "@/components/ui/Input";
+import { Sheet } from "@/components/ui/Sheet";
+import { Tabs } from "@/components/ui/Tabs";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Field } from "@/components/ui/Field";
 import { SkeletonRow } from "@/components/ui/Avatar";
+import { Chip } from "@/components/ui/Chips";
+import { Icon } from "@/components/ui/Icon";
 import { C, T, R, S } from "@/theme/tokens";
 import type { User, WorkerProfile } from "@/types";
 
@@ -71,7 +73,6 @@ export default function FindWorkers() {
       .sort((a, b) => b.worker.trustScore - a.worker.trustScore);
   }, [enriched, search, profession]);
 
-  // Open jobs with free positions — the invite picker list
   const openJobs = useMemo(
     () => jobs.filter((j) => j.status === "active" && j.workersHired < j.workersNeeded),
     [jobs]
@@ -90,78 +91,88 @@ export default function FindWorkers() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <View style={styles.head}>
-        <Text style={styles.title}>Find Workers</Text>
-        <Text style={styles.sub}>{filtered.length} available · sorted by trust</Text>
+    <SafeAreaView style={st.safe} edges={["top"]}>
+      <View style={st.head}>
+        <Text style={st.title}>Find Workers</Text>
+        <Text style={st.sub}>{filtered.length} available · sorted by trust</Text>
       </View>
 
-      <View style={styles.searchWrap}>
-        <Input
+      <View style={st.searchWrap}>
+        <Field
+          icon="search"
           value={search}
           onChangeText={setSearch}
           placeholder="Search name, trade, skill…"
-          style={{ marginBottom: 0 }}
         />
       </View>
 
-      <Tabs
-        value={profession}
-        onChange={setProfession}
-        items={[
-          { value: "all", label: "All" },
-          ...PROFESSION_NAMES.map((p) => ({ value: p, label: p })),
-        ]}
-      />
+      <View style={st.tabWrap}>
+        <Tabs
+          scrollable
+          value={profession}
+          onChange={setProfession}
+          items={[
+            { value: "all", label: "All" },
+            ...PROFESSION_NAMES.map((p) => ({ value: p, label: p })),
+          ]}
+        />
+      </View>
 
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={st.scroll}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => bootstrap()} />}
       >
         {loading && filtered.length === 0 ? (
           Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)
         ) : openJobs.length === 0 ? (
           <EmptyState
-            icon={<Text style={{ fontSize: 40 }}>👷</Text>}
+            icon="people-outline"
+            tone="primary"
             message="You need an open job with free positions before inviting workers."
             ctaLabel="Post a Job"
             onCta={() => router.push("/(contractor)/jobs/new")}
           />
         ) : filtered.length === 0 ? (
-          <EmptyState icon={<Text style={{ fontSize: 40 }}>🔍</Text>} message="No workers match your search." />
+          <EmptyState icon="search-outline" message="No workers match your search." />
         ) : (
           filtered.map(({ worker, user: u, verified }) => {
             const appliedTo = alreadyAppliedTo(worker.userId);
             return (
               <Card key={worker.userId}>
-                <View style={styles.rowTop}>
+                <View style={st.rowTop}>
                   <Avatar src={u.avatar} name={u.name} size={52} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.name}>
-                      {u.name} {verified ? "✅" : ""}
-                    </Text>
-                    <Text style={styles.meta}>
+                    <View style={st.nameRow}>
+                      <Text style={st.name}>{u.name}</Text>
+                      {verified && (
+                        <View style={st.verifiedBadge}>
+                          <Icon name="checkmark" size={10} color={C.onPrimary} />
+                        </View>
+                      )}
+                    </View>
+                    <Text style={st.meta}>
                       {worker.profession} · {worker.experienceYears} yrs · {formatINR(worker.expectedDailyWage)}/day
                     </Text>
-                    <View style={styles.badgeRow}>
+                    <View style={st.badgeRow}>
                       <Badge label={`Trust ${worker.trustScore}`} tone="green" />
                       {worker.rating > 0 && <Badge label={`★ ${worker.rating.toFixed(1)}`} tone="amber" />}
-                      <Badge label={worker.availability === "available" ? "Available" : "Working"} tone={worker.availability === "available" ? "blue" : "amber"} />
+                      <Badge label={worker.availability === "available" ? "Available" : "Working"} tone={worker.availability === "available" ? "blue" : "gray"} />
                     </View>
                   </View>
                 </View>
                 {worker.skills.length > 0 && (
-                  <View style={styles.skillWrap}>
+                  <View style={st.skillWrap}>
                     {worker.skills.slice(0, 4).map((s) => (
-                      <View key={s} style={styles.skillChip}><Text style={styles.skillText}>{s}</Text></View>
+                      <Chip key={s} label={s} small />
                     ))}
                   </View>
                 )}
-                <View style={styles.actions}>
-                  <Button label="📞 Call" variant="secondary" size="sm" onPress={() => Linking.openURL(`tel:${u.phone}`)} />
+                <View style={st.actions}>
+                  <Button label="Call" variant="secondary" size="sm" icon="call-outline" onPress={() => Linking.openURL(`tel:${u.phone}`)} />
                   <Button
                     label="Invite to Job"
                     size="sm"
+                    icon="send-outline"
                     onPress={() => setInviteTarget({ worker, user: u, verified })}
                   />
                 </View>
@@ -175,42 +186,44 @@ export default function FindWorkers() {
       <Sheet open={!!inviteTarget} onClose={() => setInviteTarget(null)} title={`Invite ${inviteTarget?.user.name ?? ""}`}>
         {inviteTarget && (
           <>
-            <View style={styles.inviteHead}>
+            <View style={st.inviteHead}>
               <Avatar src={inviteTarget.user.avatar} name={inviteTarget.user.name} size={56} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.inviteName}>{inviteTarget.user.name}</Text>
-                <Text style={styles.inviteMeta}>
+                <Text style={st.inviteName}>{inviteTarget.user.name}</Text>
+                <Text style={st.inviteMeta}>
                   {inviteTarget.worker.profession} · Trust {inviteTarget.worker.trustScore} · ★ {inviteTarget.worker.rating.toFixed(1)}
                 </Text>
               </View>
             </View>
-            <Text style={styles.pickerLabel}>Choose the job to shortlist them for</Text>
+            <Text style={st.pickerLabel}>Choose the job to shortlist them for</Text>
             {openJobs.map((j) => {
               const applied = alreadyAppliedTo(inviteTarget.worker.userId).has(j.id);
               return (
                 <Pressable
                   key={j.id}
-                  style={[styles.jobOpt, applied && { opacity: 0.5 }]}
+                  style={[st.jobOpt, applied && { opacity: 0.5 }]}
                   disabled={applied || busyJobId !== null}
                   onPress={() => invite(j.id)}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.jobOptTitle}>{j.title}</Text>
-                    <Text style={styles.jobOptMeta}>
+                    <Text style={st.jobOptTitle}>{j.title}</Text>
+                    <Text style={st.jobOptMeta}>
                       {formatINR(j.wagePerDay)}/day · {j.location} · {j.workersHired}/{j.workersNeeded} hired
                     </Text>
                   </View>
                   {applied ? (
                     <Badge label="Applied" tone="blue" />
                   ) : busyJobId === j.id ? (
-                    <Text style={styles.inviting}>Inviting…</Text>
+                    <Text style={st.inviting}>Inviting…</Text>
                   ) : (
-                    <Text style={styles.jobOptGo}>Invite ›</Text>
+                    <View style={st.jobOptGo}>
+                      <Icon name="chevron-forward" size={16} color={C.primary} />
+                    </View>
                   )}
                 </Pressable>
               );
             })}
-            <Text style={styles.pickerNote}>They'll be shortlisted instantly and notified by SMS.</Text>
+            <Text style={st.pickerNote}>They'll be shortlisted instantly and notified by SMS.</Text>
           </>
         )}
       </Sheet>
@@ -218,33 +231,34 @@ export default function FindWorkers() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.cream50 },
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
   head: { paddingHorizontal: S.lg, paddingTop: S.lg, paddingBottom: S.sm },
-  title: { fontSize: T.xxl, fontWeight: "900", color: C.navy900 },
-  sub: { fontSize: T.sm, color: C.gray500, marginTop: 2 },
   searchWrap: { paddingHorizontal: S.lg, paddingBottom: S.sm },
+  tabWrap: { paddingHorizontal: S.lg, marginBottom: S.xs },
+  title: { fontSize: T.title + 4, fontWeight: "800", color: C.text },
+  sub: { fontSize: T.caption + 1, color: C.text2, marginTop: 2 },
   scroll: { padding: S.lg, paddingTop: S.sm, paddingBottom: S.xxxl, gap: S.md },
   rowTop: { flexDirection: "row", gap: S.md, alignItems: "center" },
-  name: { fontSize: T.base, fontWeight: "800", color: C.navy900 },
-  meta: { fontSize: T.xs, color: C.gray500, marginTop: 2 },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: S.xs },
+  name: { fontSize: T.body, fontWeight: "700", color: C.text },
+  verifiedBadge: { width: 16, height: 16, borderRadius: 8, backgroundColor: C.green, alignItems: "center", justifyContent: "center" },
+  meta: { fontSize: T.caption, color: C.text2, marginTop: 2 },
   badgeRow: { flexDirection: "row", gap: S.sm, marginTop: S.sm, flexWrap: "wrap" },
   skillWrap: { flexDirection: "row", flexWrap: "wrap", gap: S.sm, marginTop: S.md },
-  skillChip: { backgroundColor: C.blue100, borderRadius: R.pill, paddingHorizontal: S.md, paddingVertical: 3 },
-  skillText: { color: C.blue600, fontSize: T.xs, fontWeight: "700" },
   actions: { flexDirection: "row", gap: S.sm, marginTop: S.md },
-  inviteHead: { flexDirection: "row", alignItems: "center", gap: S.lg, marginBottom: S.lg },
-  inviteName: { fontSize: T.lg, fontWeight: "900", color: C.navy900 },
-  inviteMeta: { fontSize: T.xs, color: C.gray500, marginTop: 2 },
-  pickerLabel: { fontSize: T.sm, fontWeight: "700", color: C.navy900, marginBottom: S.sm },
+  inviteHead: { flexDirection: "row", alignItems: "center", gap: S.lg, marginBottom: S.md },
+  inviteName: { fontSize: T.body + 2, fontWeight: "800", color: C.text },
+  inviteMeta: { fontSize: T.caption, color: C.text2, marginTop: 2 },
+  pickerLabel: { fontSize: T.caption, fontWeight: "700", color: C.text, marginBottom: S.sm },
   jobOpt: {
     flexDirection: "row", alignItems: "center", gap: S.md,
-    backgroundColor: C.white, borderWidth: 1, borderColor: C.gray200, borderRadius: R.md,
+    backgroundColor: C.muted, borderRadius: R.md,
     padding: S.md, marginBottom: S.sm,
   },
-  jobOptTitle: { fontSize: T.sm, fontWeight: "800", color: C.navy900 },
-  jobOptMeta: { fontSize: T.xs, color: C.gray500, marginTop: 2 },
-  jobOptGo: { color: C.orange600, fontSize: T.sm, fontWeight: "800" },
-  inviting: { color: C.gray500, fontSize: T.xs, fontWeight: "700" },
-  pickerNote: { fontSize: T.xs, color: C.gray500, textAlign: "center", marginTop: S.sm },
+  jobOptTitle: { fontSize: T.caption + 1, fontWeight: "700", color: C.text },
+  jobOptMeta: { fontSize: T.tiny, color: C.text2, marginTop: 2 },
+  jobOptGo: { width: 32, height: 32, borderRadius: R.pill, backgroundColor: C.primarySoft, alignItems: "center", justifyContent: "center" },
+  inviting: { color: C.text3, fontSize: T.tiny, fontWeight: "700" },
+  pickerNote: { fontSize: T.tiny, color: C.text3, textAlign: "center", marginTop: S.sm },
 });
