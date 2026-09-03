@@ -5,7 +5,7 @@
  */
 import React, { useMemo, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, TextInput,
+  View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, TextInput, ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -47,9 +47,12 @@ export default function WorkerJobs() {
   const user = useStore((s) => s.currentUser);
   const loading = useStore((s) => s.loading);
   const bootstrap = useStore((s) => s.bootstrap);
+  const applyToJob = useStore((s) => s.applyToJob);
 
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
+  const [showSaved, setShowSaved] = useState(false);
+  const [busyJobId, setBusyJobId] = useState<string | null>(null);
 
   const city = getCity(user?.location || "lucknow");
   const workerLocation = { latitude: city.latitude, longitude: city.longitude };
@@ -61,8 +64,10 @@ export default function WorkerJobs() {
 
   const feed = useMemo(() => {
     if (!profile) return [] as { job: Job; matchScore: number; reasons: string[]; distanceKm: number }[];
-    let list = jobs.filter((j) => j.status === "active" || savedJobIds.includes(j.id));
-    if (category !== "all") list = list.filter((j) => j.category === category);
+    let list = showSaved
+      ? jobs.filter((j) => savedJobIds.includes(j.id))
+      : jobs.filter((j) => j.status === "active" || savedJobIds.includes(j.id));
+    if (category !== "all" && !showSaved) list = list.filter((j) => j.category === category);
     if (query.trim()) {
       const q = query.trim().toLowerCase();
       list = list.filter((j) =>
@@ -77,9 +82,14 @@ export default function WorkerJobs() {
         return calculateMatchScore(j, profile, contractor, workerLocation);
       })
       .sort((a, b) => b.matchScore - a.matchScore);
-  }, [jobs, profile, contractorProfiles, workerLocation, category, query, savedJobIds]);
+  }, [jobs, profile, contractorProfiles, workerLocation, category, query, savedJobIds, showSaved]);
 
   const savedCount = savedJobIds.length;
+
+  async function quickApply(jobId: string) {
+    setBusyJobId(jobId);
+    try { await applyToJob(jobId); } finally { setBusyJobId(null); }
+  }
 
   return (
     <SafeAreaView style={st.safe} edges={["top"]}>
@@ -120,11 +130,14 @@ export default function WorkerJobs() {
       {/* ── Saved chip row ── */}
       <View style={st.chipRow}>
         <Text style={st.resultCount}>
-          {category === "all" && !query ? `${feed.length} open jobs` : `${feed.length} results`}
+          {showSaved ? `${feed.length} saved jobs` : category === "all" && !query ? `${feed.length} open jobs` : `${feed.length} results`}
         </Text>
-        <Pressable style={st.savedChip} onPress={() => router.push("/(worker)/jobs")}>
-          <Ionicons name="bookmark" size={13} color={savedCount ? C.primary : C.text3} />
-          <Text style={savedCount ? st.savedActive : st.savedText}>{savedCount} saved</Text>
+        <Pressable
+          style={({ pressed }) => [st.savedChip, showSaved && st.savedChipActive, pressed && { opacity: 0.75 }]}
+          onPress={() => setShowSaved((v) => !v)}
+        >
+          <Ionicons name={showSaved ? "bookmark" : "bookmark-outline"} size={13} color={showSaved ? C.primary : C.text3} />
+          <Text style={showSaved ? st.savedActive : st.savedText}>{savedCount} saved</Text>
         </Pressable>
       </View>
 
@@ -157,6 +170,8 @@ export default function WorkerJobs() {
                 distanceKm={m.distanceKm}
                 applied={applied}
                 saved={saved}
+                busy={busyJobId === m.job.id}
+                onApply={() => quickApply(m.job.id)}
                 onPress={() => router.push({ pathname: "/(worker)/jobs/[id]", params: { id: m.job.id } })}
               />
             );
@@ -170,7 +185,7 @@ export default function WorkerJobs() {
 /* ---------------- Swiggy restaurant-style job card ---------------- */
 
 function JobCard({
-  job, contractor, matchScore, reasons, distanceKm, applied, saved, onPress,
+  job, contractor, matchScore, reasons, distanceKm, applied, saved, busy, onApply, onPress,
 }: {
   job: Job;
   contractor: { companyName: string; rating: number; trustScore: number } | null;
@@ -179,6 +194,8 @@ function JobCard({
   distanceKm: number;
   applied: boolean;
   saved: boolean;
+  busy?: boolean;
+  onApply: () => void;
   onPress: () => void;
 }) {
   const score = Math.round(matchScore);
@@ -231,16 +248,33 @@ function JobCard({
           <Ionicons name="people-outline" size={13} color={C.text3} />
           <Text style={st.footText}>{job.workersHired}/{job.workersNeeded} hired</Text>
         </View>
+        {saved && !applied ? (
+          <View style={[st.footItem, { marginLeft: "auto" }]}>
+            <Ionicons name="bookmark" size={13} color={C.blue} />
+          </View>
+        ) : null}
         <View style={[st.footItem, { marginLeft: "auto" }]}>
           {applied ? (
             <View style={[st.statePill, { backgroundColor: C.greenSoft }]}>
+              <Ionicons name="checkmark" size={11} color={C.green} />
               <Text style={[st.stateText, { color: C.green }]}>APPLIED</Text>
             </View>
-          ) : saved ? (
-            <View style={[st.statePill, { backgroundColor: C.blueSoft }]}>
-              <Text style={[st.stateText, { color: C.blue }]}>SAVED</Text>
-            </View>
-          ) : null}
+          ) : (
+            <Pressable
+              style={({ pressed }) => [st.applyPill, (busy || pressed) && { opacity: 0.75 }]}
+              onPress={onApply}
+              disabled={busy}
+            >
+              {busy ? (
+                <ActivityIndicator size="small" color={C.white} />
+              ) : (
+                <>
+                  <Text style={st.applyText}>APPLY</Text>
+                  <Ionicons name="arrow-forward" size={12} color={C.white} />
+                </>
+              )}
+            </Pressable>
+          )}
         </View>
       </View>
       {reasons[0] ? (
@@ -282,6 +316,7 @@ const st = StyleSheet.create({
   resultCount: { fontSize: T.caption + 1, fontWeight: "800", color: C.text },
   savedChip: { flexDirection: "row", alignItems: "center", gap: S.xs, backgroundColor: C.muted, borderRadius: R.pill, paddingHorizontal: S.md, paddingVertical: 5 },
   savedText: { fontSize: T.tiny, fontWeight: "700", color: C.text2 },
+  savedChipActive: { backgroundColor: C.primarySoft },
   savedActive: { fontSize: T.tiny, fontWeight: "700", color: C.primary },
   scroll: { padding: S.lg, paddingTop: S.xs, paddingBottom: S.xxxl, gap: S.md },
 
@@ -318,4 +353,11 @@ const st = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 3,
   },
   stateText: { fontSize: 9.5, fontWeight: "900", letterSpacing: 0.5 },
+  applyPill: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: C.primary,
+    borderRadius: R.pill,
+    paddingHorizontal: S.md + 2, paddingVertical: 7,
+  },
+  applyText: { fontSize: 10.5, fontWeight: "900", color: C.white, letterSpacing: 0.6 },
 });

@@ -5,7 +5,7 @@
  */
 import React, { useMemo, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, RefreshControl,
+  View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -21,6 +21,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Sheet } from "@/components/ui/Sheet";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { DashedDivider, OfferStrip, RatingPill } from "@/components/ui/Swiggy";
+import { CitySheet } from "@/components/ui/CitySheet";
 import { C, T, R, S, shadow } from "@/theme/tokens";
 import type { ApplicationStatus, Job, User, WorkerProfile } from "@/types";
 
@@ -50,11 +51,14 @@ export default function ContractorHome() {
   const verifications = useStore((s) => s.verifications);
   const payments = useStore((s) => s.payments.filter((p) => p.contractorId === s.currentUser?.id));
   const inviteWorker = useStore((s) => s.inviteWorker);
+  const updateContractorProfile = useStore((s) => s.updateContractorProfile);
+  const pushToast = useStore((s) => s.pushToast);
   const bootstrap = useStore((s) => s.bootstrap);
   const loading = useStore((s) => s.loading);
 
   const [inviteTarget, setInviteTarget] = useState<Recommended | null>(null);
   const [busy, setBusy] = useState(false);
+  const [locOpen, setLocOpen] = useState(false);
 
   const city = getCity(user?.location || "lucknow");
 
@@ -91,6 +95,14 @@ export default function ContractorHome() {
   const isIdVerified = (workerId: string) =>
     verifications.some((v) => v.userId === workerId && v.type === "identity" && v.status === "verified");
 
+  async function changeCity(cityId: string) {
+    if (!user) return;
+    try {
+      await updateContractorProfile(user.id, { location: cityId });
+      pushToast("success", `Location updated to ${getCity(cityId).name}`);
+    } catch { /* store toasted */ }
+  }
+
   async function handleShortlist(r: Recommended) {
     setBusy(true);
     try {
@@ -109,7 +121,7 @@ export default function ContractorHome() {
       >
         {/* ── Green location header (Swiggy) ── */}
         <View style={st.locBar}>
-          <Pressable style={st.locLeft} onPress={() => router.push("/(contractor)/profile")}>
+          <Pressable style={st.locLeft} onPress={() => setLocOpen(true)}>
             <Ionicons name="business" size={16} color={C.white} />
             <View style={{ flex: 1 }}>
               <Text style={st.locHome} numberOfLines={1}>{profile.companyName}</Text>
@@ -195,7 +207,9 @@ export default function ContractorHome() {
               r={r}
               verified={isIdVerified(r.worker.userId)}
               isLast={i === recommended.length - 1}
+              busy={busy && inviteTarget?.worker.userId === r.worker.userId}
               onOpen={() => setInviteTarget(r)}
+              onInvite={() => handleShortlist(r)}
             />
           ))
         )}
@@ -245,17 +259,27 @@ export default function ContractorHome() {
           </>
         )}
       </Sheet>
+
+      {/* Location change sheet */}
+      <CitySheet
+        open={locOpen}
+        onClose={() => setLocOpen(false)}
+        currentCityId={user.location || "lucknow"}
+        onSelect={changeCity}
+      />
     </SafeAreaView>
   );
 }
 
 /* ---------------- Swiggy restaurant-style worker card ---------------- */
 
-function WorkerCard({ r, verified, isLast, onOpen }: {
+function WorkerCard({ r, verified, isLast, busy, onOpen, onInvite }: {
   r: Recommended;
   verified: boolean;
   isLast: boolean;
+  busy?: boolean;
   onOpen: () => void;
+  onInvite: () => void;
 }) {
   const score = Math.round(r.match.matchScore);
   const tone = score >= 70 ? C.green : C.primary;
@@ -303,9 +327,17 @@ function WorkerCard({ r, verified, isLast, onOpen }: {
       <View style={st.wFoot}>
         <Ionicons name="briefcase-outline" size={13} color={C.text3} />
         <Text style={st.wFootText} numberOfLines={1}>for {r.job.title} · {r.job.location}</Text>
-        <View style={st.wInviteBtn}>
-          <Text style={st.wInviteText}>INVITE</Text>
-        </View>
+        <Pressable
+          style={({ pressed }) => [st.wInviteBtn, (busy || pressed) && { opacity: 0.75 }]}
+          onPress={onInvite}
+          disabled={busy}
+        >
+          {busy ? (
+            <ActivityIndicator size="small" color={C.white} />
+          ) : (
+            <Text style={st.wInviteText}>INVITE</Text>
+          )}
+        </Pressable>
       </View>
       {!isLast ? <View style={{ height: S.md }} /> : null}
     </Pressable>

@@ -5,7 +5,7 @@
  */
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, RefreshControl,
+  View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,6 +24,8 @@ import { ProgressBar } from "@/components/ui/ProgressBar";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { Icon } from "@/components/ui/Icon";
 import { DashedDivider, OfferStrip, RatingPill } from "@/components/ui/Swiggy";
+import { CitySheet } from "@/components/ui/CitySheet";
+import { Fab } from "@/components/ui/Fab";
 import { C, T, R, S, shadow } from "@/theme/tokens";
 import type { Job } from "@/types";
 
@@ -52,10 +54,15 @@ export default function WorkerHome() {
   const contractorUsers = useStore((s) => s.users);
   const applications = useStore((s) => s.applications);
   const toggleAvailability = useStore((s) => s.toggleWorkerAvailability);
+  const updateWorkerProfile = useStore((s) => s.updateWorkerProfile);
+  const applyToJob = useStore((s) => s.applyToJob);
+  const pushToast = useStore((s) => s.pushToast);
   const bootstrap = useStore((s) => s.bootstrap);
   const loading = useStore((s) => s.loading);
 
   const [cat, setCat] = useState("all");
+  const [locOpen, setLocOpen] = useState(false);
+  const [busyJobId, setBusyJobId] = useState<string | null>(null);
 
   const city = getCity(user?.location || "lucknow");
   const workerLocation = { latitude: city.latitude, longitude: city.longitude };
@@ -115,6 +122,19 @@ export default function WorkerHome() {
     return "Your wage matches the market — keep building trust.";
   }, [profile, user]);
 
+  async function changeCity(cityId: string) {
+    if (!user) return;
+    try {
+      await updateWorkerProfile(user.id, { location: cityId });
+      pushToast("success", `Location updated to ${getCity(cityId).name}`);
+    } catch { /* store toasted */ }
+  }
+
+  async function quickApply(jobId: string) {
+    setBusyJobId(jobId);
+    try { await applyToJob(jobId); } finally { setBusyJobId(null); }
+  }
+
   const needsOnboarding = !!user && !!profile && workerNeedsOnboarding(user, profile);
 
   useEffect(() => {
@@ -133,7 +153,7 @@ export default function WorkerHome() {
       >
         {/* ── Green location header (Swiggy) ── */}
         <View style={st.locBar}>
-          <Pressable style={st.locLeft} onPress={() => router.push("/(worker)/profile")}>
+          <Pressable style={st.locLeft} onPress={() => setLocOpen(true)}>
             <Ionicons name="location" size={16} color={C.white} />
             <View style={{ flex: 1 }}>
               <Text style={st.locHome}>Home</Text>
@@ -215,6 +235,8 @@ export default function WorkerHome() {
                 contractorProfiles.find((c) => c.userId === m.job.contractorId)?.rating ?? 0
               }
               isLast={i === recommended.length - 1}
+              busy={busyJobId === m.job.id}
+              onApply={() => quickApply(m.job.id)}
               onPress={() => router.push({ pathname: "/(worker)/jobs/[id]", params: { id: m.job.id } })}
             />
           ))
@@ -243,17 +265,30 @@ export default function WorkerHome() {
           </View>
         )}
       </ScrollView>
+
+      {/* AI Sahayak floating button */}
+      <Fab icon="chatbubble-ellipses" label="Sahayak" bottom={58} onPress={() => router.push("/(worker)/assistant")} />
+
+      {/* Location change sheet */}
+      <CitySheet
+        open={locOpen}
+        onClose={() => setLocOpen(false)}
+        currentCityId={user.location || "lucknow"}
+        onSelect={changeCity}
+      />
     </SafeAreaView>
   );
 }
 
 /* ---------------- Swiggy restaurant-style job card ---------------- */
 
-function JobCard({ match, contractorName, contractorRating, isLast, onPress }: {
+function JobCard({ match, contractorName, contractorRating, isLast, busy, onApply, onPress }: {
   match: Match;
   contractorName: string;
   contractorRating: number;
   isLast: boolean;
+  busy?: boolean;
+  onApply: () => void;
   onPress: () => void;
 }) {
   const { job, matchScore, reasons, distanceKm } = match;
@@ -302,6 +337,20 @@ function JobCard({ match, contractorName, contractorRating, isLast, onPress }: {
             <Text style={[st.footText, { color: C.text2 }]} numberOfLines={1}>{reasons[0]}</Text>
           </View>
         ) : null}
+        <Pressable
+          style={({ pressed }) => [st.applyPill, (busy || pressed) && { opacity: 0.75 }]}
+          onPress={onApply}
+          disabled={busy}
+        >
+          {busy ? (
+            <ActivityIndicator size="small" color={C.white} />
+          ) : (
+            <>
+              <Text style={st.applyText}>APPLY</Text>
+              <Ionicons name="arrow-forward" size={12} color={C.white} />
+            </>
+          )}
+        </Pressable>
       </View>
       {!isLast ? <View style={st.cardGap} /> : null}
     </Pressable>
@@ -398,6 +447,14 @@ const st = StyleSheet.create({
   jobFoot: { flexDirection: "row", alignItems: "center", gap: S.md, flexWrap: "wrap" },
   footItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   footText: { fontSize: T.tiny, color: C.text3, fontWeight: "600" },
+  applyPill: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: C.primary,
+    borderRadius: R.pill,
+    paddingHorizontal: S.md + 2, paddingVertical: 7,
+    marginLeft: "auto",
+  },
+  applyText: { fontSize: 10.5, fontWeight: "900", color: C.white, letterSpacing: 0.6 },
   cardGap: { height: S.md },
 
   /* progress card */
