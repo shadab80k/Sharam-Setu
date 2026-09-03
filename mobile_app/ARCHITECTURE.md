@@ -1,6 +1,6 @@
 # ShramSetu Mobile — Architecture
 
-Native React Native (Expo) app for **workers and contractors**. Admin stays on the web app. The mobile app talks to the **exact same ShramSetu web backend** (Next.js API routes → InsForge Postgres) — zero backend changes, one cookie-jar auth layer.
+Native React Native (Expo) app for **workers and contractors**, redesigned in **V3 Light Minimal** (white surfaces, navy text, orange reserved for primary actions, Ionicons — no emojis). Admin stays on the web app. The mobile app talks to the **exact same ShramSetu web backend** (Next.js API routes → InsForge Postgres) — zero backend changes, one cookie-jar auth layer.
 
 ---
 
@@ -8,12 +8,13 @@ Native React Native (Expo) app for **workers and contractors**. Admin stays on t
 
 | Layer | Choice |
 |---|---|
-| Framework | React Native 0.74.5 + Expo ~51, Expo Router ~3.5 (file-based routes) |
+| Framework | React Native 0.86.3 + Expo ~57 (Expo Go latest), Expo Router ~57 (file-based routes) |
 | Language | TypeScript (strict) |
 | State | Zustand + persist (AsyncStorage) |
 | Session | InsForge cookies in `expo-secure-store` (see §3) |
-| UI | Custom kit (`src/components/ui`) on exact web design tokens |
-| Trust ring | `react-native-svg` + plain RN `Animated` (no reanimated dep) |
+| UI | V3 minimal kit (`src/components/ui`, 18 components) on Light Minimal tokens |
+| Trust ring | `react-native-svg` + plain RN `Animated` (thin 5px stroke, no reanimated dep) |
+| Icons | `@expo/vector-icons` Ionicons — the only icon path (no emojis) |
 | Images | `expo-image-picker` (camera/gallery → `/api/avatar`) |
 
 Folder layout:
@@ -21,8 +22,10 @@ Folder layout:
 ```
 mobile_app/
 ├── app/                    expo-router screens
-│   ├── _layout.tsx         root: session restore + ToastHost + boot overlay
-│   ├── index.tsx           Welcome (phone OTP / email / demo)
+│   ├── _layout.tsx         root: session restore + role gate + first-run intro gate + ToastHost
+│   ├── splash.tsx          app-internal restore screen (no blank flash)
+│   ├── intro.tsx           FIRST-RUN-ONLY 3-slide carousel (hasSeenIntro flag)
+│   ├── index.tsx           Welcome (phone OTP primary / email toggle / demo rows)
 │   ├── otp.tsx             6-digit verify (+ new-user signup completion)
 │   ├── signup.tsx          name / role / city → routes into OTP with signup params
 │   ├── (worker)/           bottom tabs: Home · Jobs · Money · Assistant · Profile
@@ -51,10 +54,15 @@ mobile_app/
 │   │                       quizBank, onboarding — one algorithm, two clients
 │   ├── types/index.ts      verbatim web lib/types
 │   ├── utils/              formatINR, timeAgo, haversine, CITIES (verbatim)
-│   ├── theme/tokens.ts     exact web palette (navy900 #071B33, orange600 #D84315…)
-│   └── components/ui/      Button, Card, Badge(+statusTone), Input/Select/Chip,
-│                           TrustRing, Avatar/Skeleton, Sheet, Tabs, ToastHost,
-│                           ProgressBar, EmptyState
+│   ├── theme/tokens.ts     V3 Light Minimal tokens: bg #F6F7F9, surface #FFF,
+│   │                       text #0E1C2E, primary #E8551D (CTA-only), soft fills,
+│   │                       hairline dividers, one soft shadow, radii 10/14/18
+│   └── components/ui/      18 V3 components: Icon/ToneIcon (Ionicons), Button
+│                           (4 variants, no outlines), Card (borderless+shadow),
+│                           ListRow (workhorse row), SectionHeader, Badge/statusTone,
+│                           Field/TextArea, Picker(→Sheet radio-list), Chips,
+│                           Sheet, Tabs (segmented), TrustRing, Avatar/Skeleton,
+│                           StatTile, ProgressBar, EmptyState, Feedback/ToastHost, Fab
 └── assets/                 (icon/splash)
 ```
 
@@ -80,7 +88,9 @@ mobile_app/
 3. Big visual hierarchy: TrustRing prominent, match % as large orange numerals, wages always `₹/day`.
 4. Skeleton shimmer loaders on every list + pull-to-refresh + honest empty states with CTAs.
 5. Toasts (success green / error red / info navy) identical to web.
-6. 6-box OTP keyboard, paste-tolerant; resend via same endpoint.
+6. 6-box OTP keyboard, paste-tolerant; muted boxes turn primarySoft when filled.
+7. First-run pipeline: native splash → in-app restore screen → 3-slide intro carousel (once ever, AsyncStorage `shramsetu.hasSeenIntro`) → welcome. Logged-in restores skip intro.
+8. Tab bars: white surface, hairline top, Ionicons, orange active + label.
 7. Language: English only in v1; Settings shows हिंदी locked ("Coming soon") — strings already centralized for v1.1.
 
 ## 5. AI parity with web
@@ -91,9 +101,10 @@ mobile_app/
 
 ## 6. Dev & ops
 
-- `API_BASE` in `src/config/index.ts` — **set to your machine's LAN IP** (e.g. `http://192.168.x.x:3000`) before `npx expo start`; production placeholder `https://shramsetu.vercel.app`.
+- API base auto-resolves (src/config): `EXPO_PUBLIC_API_BASE` env → tunnel host via manifest debuggerHost (works on mobile data) → `EXPO_PUBLIC_TUNNEL_API` (cloudflared URL for the backend) → LAN `http://192.168.1.2:3002` → production.
 - `npm run typecheck` (tsc --noEmit) — currently **clean**.
-- Install note: use `npm install --legacy-peer-deps` (Expo 51 peer ranges).
+- Tunnel delivery: `expo start --tunnel` (Expo ngrok, *.exp.direct) for the bundle + a separate `cloudflared tunnel --url http://localhost:3002` for the backend, injected via `EXPO_PUBLIC_TUNNEL_API` at expo start. Prewarm the exact Expo Go bundle URL (with hermes bytecode params) or phones stall at ~92%.
+- Install note: use `npm install --legacy-peer-deps` (Expo 57 peer ranges).
 - Realtime: v1 uses in-app bell + unread badges (web parity); `expo-notifications` push is the documented v1.1 step — no code changes needed on the backend.
 - The web repo is untouched: this folder is fully self-contained (own package.json/lockfile) and can be moved out (`git subtree`/copy) without affecting the website.
 
